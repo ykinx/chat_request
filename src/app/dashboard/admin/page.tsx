@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import DashboardLayout from '@/components/DashboardLayout'
+import DashboardLayout from '@/components/layout/DashboardLayout'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -263,7 +263,7 @@ export default function AdminDashboard() {
                         </button>
                       )}
                       <button
-                        onClick={() => router.push(`/ticket/${ticket.id}`)}
+                        onClick={() => router.push(`/tickets/${ticket.id}`)}
                         className="inline-flex items-center px-2 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         View

@@ -52,7 +52,7 @@ export default function UserDashboard() {
         setTickets([data.ticket, ...tickets])
         setNewTicket({ description: '' })
         // Navigate to the new ticket chat
-        router.push(`/ticket/${data.ticket.id}`)
+        router.push(`/tickets/${data.ticket.id}`)
       } else {
         const error = await response.json()
         setErrorMessage(error.error || 'Failed to create ticket')
@@ -239,7 +239,7 @@ export default function UserDashboard() {
               {tickets.map((ticket, index) => (
                 <div
                   key={ticket.id}
-                  onClick={() => router.push(`/ticket/${ticket.id}`)}
+                  onClick={() => router.push(`/tickets/${ticket.id}`)}
                   className="bg-white rounded-lg shadow-sm border hover:shadow-md hover:border-blue-300 cursor-pointer transition-all duration-200 p-4 animate-fade-in"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >

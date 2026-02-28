@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import DashboardLayout from '@/components/DashboardLayout'
+import DashboardLayout from '@/components/layout/DashboardLayout'
 
 export default function ITDashboard() {
   const router = useRouter()
@@ -102,7 +102,7 @@ export default function ITDashboard() {
                 <li key={ticket.id}>
                   <div 
                     className="block hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/ticket/${ticket.id}`)}
+                    onClick={() => router.push(`/tickets/${ticket.id}`)}
                   >
                     <div className="px-4 py-4 sm:px-6">
                       <div className="flex items-center justify-between">
