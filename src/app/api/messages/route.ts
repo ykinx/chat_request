@@ -32,7 +32,8 @@ async function getCurrentUserFromToken(token: string) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// GET /api/messages?ticket_id=xxx - Get messages for a ticket
+export async function GET(request: NextRequest) {
   try {
     await connectToDatabase()
     
@@ -53,17 +54,133 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    console.log('Message API - Received body:', body)
-    console.log('Message API - User:', user)
+    // Get ticket_id from query params
+    const { searchParams } = new URL(request.url)
+    const ticket_id = searchParams.get('ticket_id')
 
-    const { ticket_id, message } = body
-    console.log('Message API - Extracted values:', { ticket_id, message, ticket_id_type: typeof ticket_id, message_type: typeof message })
-
-    if (!ticket_id || !message) {
-      console.log('Message API - Validation failed:', { ticket_id, message, ticket_id_type: typeof ticket_id, message_type: typeof message })
+    if (!ticket_id) {
       return NextResponse.json(
-        { error: 'Ticket ID and message are required', details: { ticket_id, message } },
+        { error: 'Ticket ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Check if ticket exists and user has access
+    const ticket = await Ticket.findById(ticket_id)
+    if (!ticket) {
+      return NextResponse.json(
+        { error: 'Ticket not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check access permissions
+    let hasAccess = false
+    
+    // Super admin and admin can access all tickets
+    if (user.role === 'super_admin' || user.role === 'admin') {
+      hasAccess = true
+    }
+    // IT can only access assigned tickets
+    else if (user.role === 'it') {
+      hasAccess = ticket.assigned_it_id !== null && (ticket.assigned_it_id as any)._id.toString() === user.id
+    }
+    // Regular users can only access their own tickets
+    else {
+      hasAccess = (ticket.user_id as any)._id.toString() === user.id
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    // Get messages for the ticket
+    const messages = await Message.find({ ticket_id })
+      .populate('sender_id', 'name role')
+      .sort({ created_at: 1 })
+
+    // Format messages
+    const formattedMessages = messages.map(msg => ({
+      id: msg._id.toString(),
+      ticket_id: msg.ticket_id.toString(),
+      sender_id: (msg.sender_id as any)._id.toString(),
+      message: msg.message,
+      image_url: msg.image_url,
+      created_at: msg.created_at,
+      sender: {
+        id: (msg.sender_id as any)._id.toString(),
+        name: (msg.sender_id as any).name,
+        role: (msg.sender_id as any).role
+      }
+    }))
+
+    return NextResponse.json({ messages: formattedMessages })
+
+  } catch (error) {
+    console.error('Error fetching messages:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  console.log('=== MESSAGE API POST CALLED ===')
+  try {
+    await connectToDatabase()
+    
+    // Get token from request cookies
+    const authCookie = request.cookies.get('auth-token')
+    console.log('Auth cookie:', authCookie ? 'Present' : 'Missing')
+    if (!authCookie) {
+      return NextResponse.json(
+        { error: 'Unauthorized - No auth token' },
+        { status: 401 }
+      )
+    }
+    
+    const user = await getCurrentUserFromToken(authCookie.value)
+    console.log('User:', user ? user.id : 'Invalid')
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Handle both JSON and FormData
+    let ticket_id: string | null = null
+    let message: string | null = null
+    let image_url: string | null = null
+    
+    const contentType = request.headers.get('content-type') || ''
+    
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      ticket_id = formData.get('ticket_id') as string
+      message = formData.get('message') as string
+      image_url = formData.get('image_url') as string
+      console.log('Message API - FormData received')
+      console.log('  ticket_id:', ticket_id)
+      console.log('  message:', message?.substring(0, 50))
+      console.log('  image_url:', image_url ? 'YES (length: ' + image_url.length + ')' : 'NO')
+    } else {
+      const body = await request.json()
+      ticket_id = body.ticket_id
+      message = body.message
+      image_url = body.image_url
+      console.log('Message API - JSON received')
+      console.log('  image_url:', image_url ? 'YES (length: ' + image_url.length + ')' : 'NO')
+    }
+
+    if (!ticket_id || (!message && !image_url)) {
+      console.log('Message API - Validation failed:', { ticket_id, message, image_url })
+      return NextResponse.json(
+        { error: 'Ticket ID and message or image are required', details: { ticket_id, message, image_url } },
         { status: 400 }
       )
     }
@@ -124,11 +241,12 @@ export async function POST(request: NextRequest) {
     const newMessage = new Message({
       ticket_id,
       sender_id: user.id,
-      message
+      message: message || '',
+      image_url: image_url || null
     })
 
     await newMessage.save()
-    console.log('Message API - Message created:', newMessage._id)
+    console.log('Message API - Message created:', newMessage._id, 'Image URL:', image_url ? 'Yes (length: ' + image_url.length + ')' : 'No')
 
     // Populate sender data
     await newMessage.populate('sender_id', 'id name role')
@@ -144,6 +262,7 @@ export async function POST(request: NextRequest) {
       ticket_id: newMessage.ticket_id.toString(),
       sender_id: (newMessage.sender_id as any)._id.toString(),
       message: newMessage.message,
+      image_url: newMessage.image_url,
       created_at: newMessage.created_at,
       sender: {
         id: (newMessage.sender_id as any)._id.toString(),

@@ -27,11 +27,15 @@ export const getCurrentUser = async () => {
     const token = cookieStore.get('auth-token')?.value
 
     if (!token) {
+      console.log('getCurrentUser: No token found')
       return null
     }
 
     const payload = verifyToken(token)
+    console.log('getCurrentUser: Token payload:', payload)
+    
     const user = await User.findById(payload.userId)
+    console.log('getCurrentUser: User from DB:', user ? { id: user._id, email: user.email, role: user.role } : 'Not found')
     
     if (!user || !user.is_active) {
       return null
@@ -49,6 +53,7 @@ export const getCurrentUser = async () => {
       updated_at: user.updated_at
     }
   } catch (error) {
+    console.error('getCurrentUser error:', error)
     return null
   }
 }

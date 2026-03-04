@@ -43,6 +43,42 @@ app.prepare().then(() => {
       console.log(`Socket ${socket.id} left ticket-${ticketId}`)
     })
 
+    // Join user room for ticket updates
+    socket.on('join-user', (userId) => {
+      socket.join(`user-${userId}`)
+      console.log(`Socket ${socket.id} joined user-${userId}`)
+    })
+
+    // Leave user room
+    socket.on('leave-user', (userId) => {
+      socket.leave(`user-${userId}`)
+      console.log(`Socket ${socket.id} left user-${userId}`)
+    })
+
+    // Join admin room for all ticket updates
+    socket.on('join-admin', () => {
+      socket.join('admin-room')
+      console.log(`Socket ${socket.id} joined admin-room`)
+    })
+
+    // Leave admin room
+    socket.on('leave-admin', () => {
+      socket.leave('admin-room')
+      console.log(`Socket ${socket.id} left admin-room`)
+    })
+
+    // Join IT room for assigned ticket updates
+    socket.on('join-it', (itId) => {
+      socket.join(`it-${itId}`)
+      console.log(`Socket ${socket.id} joined it-${itId}`)
+    })
+
+    // Leave IT room
+    socket.on('leave-it', (itId) => {
+      socket.leave(`it-${itId}`)
+      console.log(`Socket ${socket.id} left it-${itId}`)
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id)

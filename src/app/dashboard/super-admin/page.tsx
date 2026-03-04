@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import Swal from 'sweetalert2'
 
 interface User {
   id: string
@@ -104,9 +105,20 @@ export default function SuperAdminDashboard() {
         setShowCreateForm(false)
         setNewUser({ name: '', email: '', work_id: '', password: '', role: 'super_admin', department: '' })
         fetchAuditLogs() // Refresh logs
+        Swal.fire({
+          title: "Created!",
+          text: "User has been created successfully",
+          icon: "success",
+          draggable: true
+        })
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to create user')
+        Swal.fire({
+          title: "Error",
+          text: error.error || 'Failed to create user',
+          icon: "error",
+          draggable: true
+        })
       }
     } catch (error) {
       console.error('Error creating user:', error)
@@ -130,9 +142,20 @@ export default function SuperAdminDashboard() {
         setShowEditForm(false)
         setSelectedUser(null)
         fetchAuditLogs() // Refresh logs
+        Swal.fire({
+          title: "Updated!",
+          text: "User has been updated successfully",
+          icon: "success",
+          draggable: true
+        })
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update user')
+        Swal.fire({
+          title: "Error",
+          text: error.error || 'Failed to update user',
+          icon: "error",
+          draggable: true
+        })
       }
     } catch (error) {
       console.error('Error updating user:', error)
@@ -140,9 +163,17 @@ export default function SuperAdminDashboard() {
   }
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return
-    }
+    const result = await Swal.fire({
+      title: "Delete this user?",
+      text: "This action cannot be undone!",
+      showDenyButton: true,
+      showCancelButton: false,
+      confirmButtonText: "Yes, delete it",
+      denyButtonText: "No, keep it",
+      icon: "warning"
+    })
+    
+    if (!result.isConfirmed) return
 
     try {
       const response = await fetch(`/api/users/${userId}`, {
@@ -152,9 +183,20 @@ export default function SuperAdminDashboard() {
       if (response.ok) {
         setUsers(users.filter(u => u.id !== userId))
         fetchAuditLogs() // Refresh logs
+        Swal.fire({
+          title: "Deleted!",
+          text: "User has been deleted successfully",
+          icon: "success",
+          draggable: true
+        })
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to delete user')
+        Swal.fire({
+          title: "Error",
+          text: error.error || 'Failed to delete user',
+          icon: "error",
+          draggable: true
+        })
       }
     } catch (error) {
       console.error('Error deleting user:', error)
@@ -176,11 +218,21 @@ export default function SuperAdminDashboard() {
         setShowResetPasswordForm(false)
         setSelectedUser(null)
         setNewPassword('')
-        alert('Password reset successfully')
+        Swal.fire({
+          title: "Reset Successful!",
+          text: "Password has been reset successfully",
+          icon: "success",
+          draggable: true
+        })
         fetchAuditLogs() // Refresh logs
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to reset password')
+        Swal.fire({
+          title: "Error",
+          text: error.error || 'Failed to reset password',
+          icon: "error",
+          draggable: true
+        })
       }
     } catch (error) {
       console.error('Error resetting password:', error)

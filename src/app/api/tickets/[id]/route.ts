@@ -153,7 +153,7 @@ export async function PUT(
     // Admin, super_admin and IT can update tickets
     const updateData: any = {}
     
-    // IT can only update status to closed for their assigned tickets
+    // IT can update status to in_progress or closed for their assigned tickets
     if (status && user.role === 'it') {
       // Check if ticket is assigned to this IT user
       if (existingTicket.assigned_it_id?.toString() !== user.id) {
@@ -162,8 +162,8 @@ export async function PUT(
           { status: 403 }
         )
       }
-      // IT can only close tickets, not reopen
-      if (status === 'closed') {
+      // IT can change status to in_progress or closed
+      if (status === 'in_progress' || status === 'closed' || status === 'open') {
         updateData.status = status
       }
     }
@@ -174,6 +174,14 @@ export async function PUT(
     
     // Handle assigned_it_id - can be string to assign, or empty string/null to unassign
     if (assigned_it_id !== undefined && (user.role === 'admin' || user.role === 'super_admin')) {
+      // Cannot assign closed tickets
+      if (existingTicket.status === 'closed' && assigned_it_id !== '' && assigned_it_id !== null) {
+        return NextResponse.json(
+          { error: 'Cannot assign a closed ticket' },
+          { status: 400 }
+        )
+      }
+      
       if (assigned_it_id === '' || assigned_it_id === null) {
         // Unassign the ticket
         updateData.assigned_it_id = null
@@ -246,6 +254,31 @@ export async function PUT(
         id: (updatedTicket.assigned_it_id as any)._id.toString(),
         name: (updatedTicket.assigned_it_id as any).name
       } : null
+    }
+
+    // Emit socket event for ticket update
+    if (globalThis.io) {
+      // Emit to ticket room
+      globalThis.io.to(`ticket-${ticketId}`).emit('ticket-updated', {
+        ticket: formattedTicket
+      })
+      // Emit to user room
+      globalThis.io.to(`user-${formattedTicket.user_id}`).emit('ticket-updated', {
+        ticket: formattedTicket
+      })
+      // Emit to admin room
+      globalThis.io.to('admin-room').emit('ticket-updated', {
+        ticket: formattedTicket
+      })
+      // Emit to IT room if assigned
+      if (formattedTicket.assigned_it_id) {
+        globalThis.io.to(`it-${formattedTicket.assigned_it_id}`).emit('ticket-assigned', {
+          ticket: formattedTicket
+        })
+        globalThis.io.to(`it-${formattedTicket.assigned_it_id}`).emit('ticket-updated', {
+          ticket: formattedTicket
+        })
+      }
     }
 
     return NextResponse.json({
