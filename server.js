@@ -79,6 +79,27 @@ app.prepare().then(() => {
       console.log(`Socket ${socket.id} left it-${itId}`)
     })
 
+    // Mark messages as read (auto-triggered when viewing ticket)
+    socket.on('mark-as-read', async ({ ticketId, userId }) => {
+      console.log(`Mark-as-read request: ticket=${ticketId}, user=${userId}`)
+      try {
+        const { markMessagesAsRead, getUnreadCount } = await import('./src/lib/ticket-participant.js')
+        await markMessagesAsRead(ticketId, userId)
+        const unreadCount = await getUnreadCount(ticketId, userId)
+        
+        // Broadcast to all in ticket room that messages were marked as read
+        socket.to(`ticket-${ticketId}`).emit('messages-marked-read', {
+          ticket_id: ticketId,
+          user_id: userId,
+          unread_count: unreadCount
+        })
+        
+        console.log(`Messages marked as read for user ${userId} in ticket ${ticketId}`)
+      } catch (error) {
+        console.error('Error in mark-as-read socket handler:', error)
+      }
+    })
+
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id)

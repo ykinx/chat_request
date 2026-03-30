@@ -4,11 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSocket } from '@/lib/socket'
 import Swal from 'sweetalert2'
+import { useNotificationManager, sendNotification, playNotificationSound } from '@/lib/notifications'
 import { TICKET_CATEGORIES, CATEGORY_LABELS, CATEGORY_COLORS, TicketCategory } from '@/types/ticket'
 
 export default function UserDashboard() {
   const router = useRouter()
   const { socket, isConnected } = useSocket()
+  const { canNotify, requestPermission } = useNotificationManager()
   const [tickets, setTickets] = useState<any[]>([])
   const [filteredTickets, setFilteredTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,6 +33,27 @@ export default function UserDashboard() {
     fetchTickets()
   }, [])
 
+  // Request notification permission on first user interaction when not granted
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const onFirstInteract = async () => {
+      if (!canNotify) {
+        await requestPermission()
+      }
+      window.removeEventListener('click', onFirstInteract)
+      window.removeEventListener('keydown', onFirstInteract)
+    }
+
+    window.addEventListener('click', onFirstInteract)
+    window.addEventListener('keydown', onFirstInteract)
+
+    return () => {
+      window.removeEventListener('click', onFirstInteract)
+      window.removeEventListener('keydown', onFirstInteract)
+    }
+  }, [canNotify, requestPermission])
+
   // Socket.IO - Listen for real-time ticket updates
   useEffect(() => {
     if (!socket || !isConnected) return
@@ -50,6 +73,31 @@ export default function UserDashboard() {
             setFilteredTickets(prev => [ticket, ...prev.filter(t => t.id !== ticket.id)])
           })
 
+          // Listen for message notifications
+          socket.on('new-message', async (message: any) => {
+            let granted = canNotify
+            if (!granted) {
+              granted = await requestPermission()
+            }
+
+            if (!granted) return
+
+            const senderName = message.sender?.name || message.sender_name || message.user?.name || 'Someone'
+            const ticketCode = message.ticket_code || message.ticket_id || 'ticket'
+            sendNotification({
+              title: `New message from ${senderName}`,
+              body: message.message
+                ? message.message.length > 80
+                  ? `${message.message.slice(0, 77)}...`
+                  : message.message
+                : `New activity on ${ticketCode}`,
+              icon: '/favicon.ico',
+              tag: `ticket-${ticketCode}`,
+              requireInteraction: false,
+              duration: 18000
+            })
+          })
+
           // Listen for ticket updates
           socket.on('ticket-updated', ({ ticket }: { ticket: any }) => {
             setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t))
@@ -61,6 +109,7 @@ export default function UserDashboard() {
     return () => {
       socket.off('new-ticket')
       socket.off('ticket-updated')
+      socket.off('new-message')
     }
   }, [socket, isConnected])
 

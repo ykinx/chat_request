@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { Message, Ticket } from '@/models'
+import { Message, Ticket, TicketParticipant } from '@/models'
 import { verifyToken } from '@/lib/auth'
 import { User } from '@/models'
+import { initializeTicketParticipant, incrementUnreadCounts } from '@/lib/ticket-participant'
 
 // Helper function to get user from token (since cookies() doesn't work in API routes called from client)
 async function getCurrentUserFromToken(token: string) {
@@ -256,6 +257,17 @@ export async function POST(request: NextRequest) {
       updated_at: new Date()
     })
 
+    // Initialize ticket participant if not exists (for ticket creator)
+    await initializeTicketParticipant(ticket_id, (ticket.user_id as any)._id.toString())
+    
+    // Add assignee as participant if assigned
+    if (ticket.assigned_it_id) {
+      await initializeTicketParticipant(ticket_id, (ticket.assigned_it_id as any)._id.toString())
+    }
+
+    // Increment unread counts for all other participants
+    await incrementUnreadCounts(ticket_id, user.id)
+
     // Format the response
     const formattedMessage = {
       id: newMessage._id.toString(),
@@ -273,10 +285,46 @@ export async function POST(request: NextRequest) {
 
     // Emit socket event for real-time updates
     if (globalThis.io) {
-      globalThis.io.to(`ticket-${ticket_id}`).emit('new-message', formattedMessage)
+      const io = globalThis.io
+
+      // To ticket room (active ticket viewers)
+      io.to(`ticket-${ticket_id}`).emit('new-message', formattedMessage)
+      io.to(`ticket-${ticket_id}`).emit('unread-count-updated', {
+        ticket_id,
+        updated_by: user.id
+      })
+
+      // Also emit to each participant user room so dashboard/other pages receive.
+      const participants = await TicketParticipant.find({ ticket_id })
+      participants.forEach(participant => {
+        const participantId = participant.user_id.toString()
+        if (participantId !== user.id) {
+          io.to(`user-${participantId}`).emit('new-message', formattedMessage)
+          io.to(`user-${participantId}`).emit('unread-count-updated', {
+            ticket_id,
+            updated_by: user.id
+          })
+        }
+      })
+
+      // Also broadcast to admin room and assigned IT room (if assigned)
+      io.to('admin-room').emit('new-message', formattedMessage)
+      io.to('admin-room').emit('unread-count-updated', {
+        ticket_id,
+        updated_by: user.id
+      })
+
+      if (ticket.assigned_it_id) {
+        const itId = (ticket.assigned_it_id as any)?._id?.toString() || ticket.assigned_it_id.toString()
+        io.to(`it-${itId}`).emit('new-message', formattedMessage)
+        io.to(`it-${itId}`).emit('unread-count-updated', {
+          ticket_id,
+          updated_by: user.id
+        })
+      }
     }
 
-    console.log('Message API - Success response sent')
+    console.log('Message API - Success response sent' )
     return NextResponse.json({
       message: formattedMessage
     }, { status: 201 })

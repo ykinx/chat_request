@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSocket } from '@/lib/socket'
 import Swal from 'sweetalert2'
+import { canSendNotifications, sendNotification, useNotificationManager, playNotificationSound, closeAllNotifications } from '@/lib/notifications'
 
 interface Message {
     id: string
@@ -36,6 +37,10 @@ interface Ticket {
     } | null
 }
 
+interface UnreadCounts {
+    [ticketId: string]: number
+}
+
 export default function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter()
     const { socket, isConnected } = useSocket()
@@ -48,8 +53,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     const [loading, setLoading] = useState(true)
     const [userRole, setUserRole] = useState<string>('')
     const [currentUserId, setCurrentUserId] = useState<string>('')
+    const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({})
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const hasRequestedNotificationPermission = useRef(false)
+
+    // Initialize notification manager
+    const { canNotify, isTabVisible, requestPermission } = useNotificationManager()
 
     // Unwrap params Promise
     const { id: ticketId } = use(params)
@@ -71,25 +81,103 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         if (socket) {
             socket.emit('join-ticket', ticketId)
 
+            // Listen for new messages
             socket.on('new-message', (message: Message) => {
                 console.log('Received new message via Socket.IO:', message)
-                console.log('Message has image:', message.image_url ? 'Yes (length: ' + message.image_url.length + ')' : 'No')
+                
+                // Prevent duplicate messages
                 setMessages(prev => {
                     if (prev.find(m => m.id === message.id)) return prev
                     return [...prev, message]
                 })
+
+                // Increment unread count if message is from others
+                if (message.sender_id !== currentUserId) {
+                    setUnreadCounts(prev => ({
+                        ...prev,
+                        [ticketId]: (prev[ticketId] || 0) + 1
+                    }))
+
+                    // Send browser notification if permission granted
+                    if (canNotify) {
+                        const senderName = message.sender?.name || 'Someone'
+                        const ticketCode = message.ticket_id || 'ticket'
+                        sendNotification({
+                            title: `New message from ${senderName}`,
+                            body: message.message
+                                ? message.message.length > 80
+                                  ? `${message.message.slice(0, 77)}...`
+                                  : message.message
+                                : `New activity on ${ticketCode}`,
+                            icon: '/favicon.ico',
+                            tag: `ticket-${ticketCode}`,
+                            requireInteraction: false,
+                            duration: 18000
+                        })
+
+                        // Play sound cue
+                        playNotificationSound()
+                    }
+                }
+            })
+
+            // Listen for unread count updates from other clients
+            socket.on('unread-count-updated', ({ ticket_id, updated_by }: { ticket_id: string, updated_by: string }) => {
+                // Only update if not the current user and viewing this ticket
+                if (updated_by !== currentUserId && ticket_id === ticketId) {
+                    // Fetch fresh unread count
+                    fetchUnreadCount(ticketId, currentUserId)
+                }
+            })
+
+            // Listen for messages marked as read
+            socket.on('messages-marked-read', ({ ticket_id, user_id, unread_count }: { ticket_id: string, user_id: string, unread_count: number }) => {
+                console.log(`User ${user_id} marked messages as read in ticket ${ticket_id}, unread: ${unread_count}`)
+                // We don't need to do anything here as each client manages their own state
             })
 
             return () => {
                 socket.emit('leave-ticket', ticketId)
                 socket.off('new-message')
+                socket.off('unread-count-updated')
+                socket.off('messages-marked-read')
             }
         }
-    }, [socket, ticketId])
+    }, [socket, ticketId, isConnected, isTabVisible, canNotify, currentUserId])
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
+
+    // Auto-mark as read when viewing ticket and tab becomes visible
+    useEffect(() => {
+        if (!ticketId || !currentUserId) return
+
+        // Mark as read when tab is visible and user is viewing this ticket
+        if (isTabVisible) {
+            console.log('Tab visible, marking messages as read for ticket:', ticketId)
+            markAsRead(ticketId)
+            closeAllNotifications()
+        }
+    }, [isTabVisible, ticketId, currentUserId])
+
+    // Request notification permission on mount (after user interaction)
+    useEffect(() => {
+        const handleUserInteraction = () => {
+            if (!hasRequestedNotificationPermission.current && canSendNotifications() === false) {
+                requestPermission()
+                hasRequestedNotificationPermission.current = true
+            }
+        }
+
+        window.addEventListener('click', handleUserInteraction)
+        window.addEventListener('keydown', handleUserInteraction)
+
+        return () => {
+            window.removeEventListener('click', handleUserInteraction)
+            window.removeEventListener('keydown', handleUserInteraction)
+        }
+    }, [requestPermission])
 
     const fetchCurrentUser = async () => {
         try {
@@ -110,6 +198,46 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         }
     }
 
+    // Fetch unread count for a ticket
+    const fetchUnreadCount = async (tId: string, userId: string) => {
+        try {
+            const response = await fetch(`/api/tickets/unread-count?ticket_id=${tId}`)
+            if (response.ok) {
+                const data = await response.json()
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [tId]: data.unread_count || 0
+                }))
+            }
+        } catch (error) {
+            console.error('Error fetching unread count:', error)
+        }
+    }
+
+    // Mark messages as read
+    const markAsRead = async (tId: string) => {
+        try {
+            await fetch('/api/tickets/mark-as-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticket_id: tId })
+            })
+            
+            // Reset local unread count
+            setUnreadCounts(prev => ({
+                ...prev,
+                [tId]: 0
+            }))
+
+            // Also emit via socket for real-time sync
+            if (socket && currentUserId) {
+                socket.emit('mark-as-read', { ticketId: tId, userId: currentUserId })
+            }
+        } catch (error) {
+            console.error('Error marking messages as read:', error)
+        }
+    }
+
     const fetchAllTickets = async () => {
         try {
             console.log('Fetching all tickets for sidebar')
@@ -118,6 +246,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 const data = await response.json()
                 console.log('Tickets fetched:', data.tickets?.length || 0)
                 setTickets(data.tickets || [])
+                
+                // Fetch unread counts for all tickets
+                if (currentUserId && data.tickets?.length > 0) {
+                    data.tickets.forEach((ticket: any) => {
+                        fetchUnreadCount(ticket.id, currentUserId)
+                    })
+                }
             }
         } catch (error) {
             console.error('Error fetching tickets:', error)
@@ -236,7 +371,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 body: formData
             })
 
-            const data = await response.json()
+            const responseText = await response.text()
+            let data: any = {}
+            try {
+                data = responseText ? JSON.parse(responseText) : {}
+            } catch {
+                data = { error: responseText || 'Unknown response' }
+            }
 
             if (response.ok) {
                 setNewMessage('')
@@ -245,16 +386,22 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     fileInputRef.current.value = ''
                 }
             } else {
-                console.error('Failed to send message:', data)
+                console.error('Failed to send message:', response.status, response.statusText, data)
                 Swal.fire({
                     title: "Error",
-                    text: data.error || 'Failed to send message',
+                    text: data.error || data.message || `Failed to send message: ${response.status}`,
                     icon: "error",
                     draggable: true
                 })
             }
         } catch (error) {
             console.error('Error sending message:', error)
+            Swal.fire({
+                title: "Error",
+                text: error instanceof Error ? error.message : 'Error sending message',
+                icon: "error",
+                draggable: true
+            })
         }
     }
 
@@ -331,35 +478,46 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
                     {/* Tickets List - Scrollable */}
                     <div className="flex-1 overflow-y-auto">
-                        {tickets.map((t) => (
-                            <div
-                                key={t.id}
-                                onClick={() => router.push(`/tickets/${t.id}`)}
-                                className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${t.id === ticketId ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                        {tickets.map((t) => {
+                            const unreadCount = unreadCounts[t.id] || 0
+                            return (
+                                <div
+                                    key={t.id}
+                                    onClick={() => router.push(`/tickets/${t.id}`)}
+                                    className={`p-4 border-b cursor-pointer hover:bg-gray-50 relative ${
+                                        t.id === ticketId ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                                     }`}
-                            >
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="font-medium text-sm text-gray-900 truncate">
-                                        {t.user?.name || 'Unknown'}
-                                    </span>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                            t.status === 'open'
-                                                ? 'bg-green-100 text-green-800'
-                                                : t.status === 'in_progress'
-                                                ? 'bg-yellow-100 text-yellow-800'
-                                                : 'bg-gray-100 text-gray-700'
-                                        }`}>
-                                        {t.status === 'in_progress' ? 'In Progress' : t.status}
-                                    </span>
+                                >
+                                    {/* Unread Badge */}
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </span>
+                                    )}
+                                    
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-sm text-gray-900 truncate pr-8">
+                                            {t.user?.name || 'Unknown'}
+                                        </span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                t.status === 'open'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : t.status === 'in_progress'
+                                                    ? 'bg-yellow-100 text-yellow-800'
+                                                    : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {t.status === 'in_progress' ? 'In Progress' : t.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 truncate">{t.title}</p>
+                                    {t.assigned_it && (
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            Assigned: {t.assigned_it.name}
+                                        </p>
+                                    )}
                                 </div>
-                                <p className="text-xs text-gray-600 truncate">{t.title}</p>
-                                {t.assigned_it && (
-                                    <p className="text-xs text-blue-600 mt-1">
-                                        Assigned: {t.assigned_it.name}
-                                    </p>
-                                )}
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
             )}

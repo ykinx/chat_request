@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { useSocket } from '@/lib/socket'
 import Swal from 'sweetalert2'
+import { useNotificationManager, sendNotification, playNotificationSound } from '@/lib/notifications'
 import { TICKET_CATEGORIES, CATEGORY_LABELS, CATEGORY_COLORS } from '@/types/ticket'
 import dynamic from 'next/dynamic'
 
@@ -41,6 +42,7 @@ interface AnalyticsData {
 export default function AdminDashboard() {
   const router = useRouter()
   const { socket, isConnected } = useSocket()
+  const { canNotify, requestPermission } = useNotificationManager()
   const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -70,9 +72,29 @@ export default function AdminDashboard() {
     socket.on('ticket-updated', ({ ticket }: { ticket: any }) => {
       setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t))
     })
+
+    socket.on('new-message', async (message: any) => {
+      let granted = canNotify
+      if (!granted) {
+        granted = await requestPermission()
+      }
+
+      if (!granted) return
+
+      const senderName = message.sender?.name || message.sender_name || 'Someone'
+      sendNotification({
+        title: `New message from ${senderName}`,
+        body: message.message || 'Ada pesan baru',
+        icon: '/favicon.ico',
+        tag: `ticket-${message.ticket_id}`
+      })
+      playNotificationSound()
+    })
+
     return () => {
       socket.off('new-ticket')
       socket.off('ticket-updated')
+      socket.off('new-message')
       socket.emit('leave-admin')
     }
   }, [socket, isConnected])
@@ -293,7 +315,7 @@ export default function AdminDashboard() {
                       className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                       onClick={() => router.push(`/tickets/${ticket.id}`)}
                     >
-                      <div className="w-9 h-9 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-sm font-medium text-white shrink-0">
+                      <div className="w-9 h-9 bg-linear-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-sm font-medium text-white shrink-0">
                         {ticket.user?.name?.charAt(0).toUpperCase() || 'U'}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -334,7 +356,7 @@ export default function AdminDashboard() {
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 bg-white border border-gray-200 rounded-lg">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" /></svg>
             </button>
-            <span className="text-sm text-gray-700 px-3 py-1 bg-white border border-gray-200 rounded-lg min-w-[36px] text-center">{currentPage}</span>
+            <span className="text-sm text-gray-700 px-3 py-1 bg-white border border-gray-200 rounded-lg min-w-9 text-center">{currentPage}</span>
             <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 bg-white border border-gray-200 rounded-lg">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" /></svg>
             </button>

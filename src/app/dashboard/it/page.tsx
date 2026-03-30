@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { useSocket } from '@/lib/socket'
 import Swal from 'sweetalert2'
+import { useNotificationManager, sendNotification, playNotificationSound } from '@/lib/notifications'
 import { TICKET_CATEGORIES, CATEGORY_LABELS, CATEGORY_COLORS, TicketCategory } from '@/types/ticket'
 
 export default function ITDashboard() {
   const router = useRouter()
   const { socket, isConnected } = useSocket()
+  const { canNotify, requestPermission } = useNotificationManager()
   const [tickets, setTickets] = useState<any[]>([])
   const [filteredTickets, setFilteredTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,12 +84,32 @@ export default function ITDashboard() {
           socket.on('ticket-updated', ({ ticket }: { ticket: any }) => {
             setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t))
           })
+
+          // Listen for new messages
+          socket.on('new-message', async (message: any) => {
+            let granted = canNotify
+            if (!granted) {
+              granted = await requestPermission()
+            }
+
+            if (!granted) return
+
+            const senderName = message.sender?.name || message.sender_name || 'Someone'
+            sendNotification({
+              title: `New message from ${senderName}`,
+              body: message.message || 'Ada pesan baru',
+              icon: '/favicon.ico',
+              tag: `ticket-${message.ticket_id}`
+            })
+            playNotificationSound()
+          })
         }
       })
 
     return () => {
       socket.off('ticket-assigned')
       socket.off('ticket-updated')
+      socket.off('new-message')
     }
   }, [socket, isConnected])
 
@@ -201,7 +223,7 @@ export default function ITDashboard() {
           {/* Search and Filters */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-50">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
