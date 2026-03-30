@@ -27,9 +27,23 @@ export default function DashboardLayout({
         setUser(data.user)
         
         // Check if user has correct role
-        if (data.user.role !== role) {
-          router.push(`/${data.user.role}`)
-          return
+        const expectedPath =
+          role === 'super_admin' ? '/dashboard/super-admin' :
+          role === 'admin' ? '/dashboard/admin' :
+          role === 'it' ? '/dashboard/it' :
+          '/dashboard'
+
+        let userPath =
+          data.user.role === 'super_admin' ? '/dashboard/super-admin' :
+          data.user.role === 'admin' ? '/dashboard/admin' :
+          data.user.role === 'it' ? '/dashboard/it' :
+          '/dashboard'
+
+        if (window.location.pathname !== expectedPath) {
+          if (data.user.role !== role) {
+            router.push(userPath)
+            return
+          }
         }
       } catch (error) {
         router.push('/login')
@@ -62,13 +76,13 @@ export default function DashboardLayout({
     return null
   }
 
-  const navLinks = [
-    { href: `/${role}`, label: 'Dashboard' },
-    ...(role === 'super_admin' ? [
-      { href: '/super-admin', label: 'User Management' },
-      { href: '/admin', label: 'All Tickets' }
-    ] : [])
-  ]
+  const rolePath =
+    role === 'super_admin' ? '/dashboard/super-admin' :
+    role === 'admin' ? '/dashboard/admin' :
+    role === 'it' ? '/dashboard/it' :
+    '/dashboard'
+
+  const navLinks: { href: string; label: string }[] = []
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -82,15 +96,7 @@ export default function DashboardLayout({
               </div>
               {/* Desktop Navigation */}
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                {navLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    className="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                  >
-                    {link.label}
-                  </a>
-                ))}
+                {/* Menu buttons removed by request */}
               </div>
             </div>
             
@@ -109,7 +115,7 @@ export default function DashboardLayout({
               </div>
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile Menu Button (hidden because nav links removed) */}
             <div className="flex items-center sm:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

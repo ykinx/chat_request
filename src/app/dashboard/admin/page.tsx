@@ -26,6 +26,17 @@ const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: fals
 const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 const STATUS_COLORS = { open: '#22c55e', in_progress: '#f59e0b', closed: '#6b7280' }
 
+// Category-specific colors for Pie chart
+const CATEGORY_PIE_COLORS: Record<string, string> = {
+  hardware: '#f97316',
+  software: '#3b82f6',
+  network: '#8b5cf6',
+  access_request: '#14b8a6',
+  email: '#ec4899',
+  printer: '#f59e0b',
+  other: '#94a3b8'
+}
+
 interface AnalyticsData {
   summary: {
     totalTickets: number
@@ -265,10 +276,22 @@ export default function AdminDashboard() {
               <div className="h-40">
                 <ResponsiveContainer width="100%" height={160}>
                   <PieChart>
-                    <Pie data={analytics.categoryData} cx="35%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={2} dataKey="value">
-                      {analytics.categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                    <Pie
+                      data={analytics.categoryData.map((entry) => ({
+                        ...entry,
+                        fill: CATEGORY_PIE_COLORS[entry.name] || COLORS[analytics.categoryData.findIndex((e) => e.name === entry.name) % COLORS.length]
+                      }))}
+                      cx="35%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {analytics.categoryData.map((entry, index) => {
+                        const color = CATEGORY_PIE_COLORS[entry.name] || COLORS[index % COLORS.length]
+                        return <Cell key={`cell-${index}`} fill={color} />
+                      })}
                     </Pie>
                     <Tooltip />
                   </PieChart>

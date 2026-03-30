@@ -32,8 +32,12 @@ export default function SuperAdminDashboard() {
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [logs, setLogs] = useState<AuditLog[]>([])
+  const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users')
+  const [activeTab, setActiveTab] = useState<'users' | 'tickets' | 'logs'>('tickets')
+  const [ticketSearch, setTicketSearch] = useState('')
+  const [ticketCategory, setTicketCategory] = useState('')
+  const [ticketStatus, setTicketStatus] = useState('')
   
   // User form states
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -61,8 +65,9 @@ export default function SuperAdminDashboard() {
 
   useEffect(() => {
     fetchUsers()
+    fetchTickets()
     fetchAuditLogs()
-  }, [])
+  }, [ticketSearch, ticketCategory, ticketStatus])
 
   const fetchUsers = async () => {
     try {
@@ -87,6 +92,23 @@ export default function SuperAdminDashboard() {
       }
     } catch (error) {
       console.error('Error fetching audit logs:', error)
+    }
+  }
+
+  const fetchTickets = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (ticketSearch) params.append('search', ticketSearch)
+      if (ticketCategory) params.append('category', ticketCategory)
+      if (ticketStatus) params.append('status', ticketStatus)
+
+      const response = await fetch(`/api/tickets?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        setTickets(data.tickets)
+      }
+    } catch (error) {
+      console.error('Error fetching tickets:', error)
     }
   }
 
@@ -317,7 +339,7 @@ export default function SuperAdminDashboard() {
 
   return (
     <DashboardLayout role="super_admin">
-      <div className="px-0 sm:px-0">
+      <div className="px-0 sm:px-0 text-black">
         {/* Tabs */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
           <div className="flex space-x-2 sm:space-x-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
@@ -330,6 +352,16 @@ export default function SuperAdminDashboard() {
               }`}
             >
               User Management
+            </button>
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'tickets'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              All Tickets
             </button>
             <button
               onClick={() => setActiveTab('logs')}
@@ -420,6 +452,87 @@ export default function SuperAdminDashboard() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Tickets Tab */}
+        {activeTab === 'tickets' && (
+          <div className="bg-white shadow overflow-hidden sm:rounded-md mb-4">
+            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row gap-3 items-center">
+              <input
+                type="text"
+                value={ticketSearch}
+                onChange={(e) => setTicketSearch(e.target.value)}
+                placeholder="Search tickets..."
+                className="w-full sm:w-1/3 px-3 py-2 border border-gray-300 rounded-md"
+              />
+              <select
+                value={ticketCategory}
+                onChange={(e) => setTicketCategory(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md"
+              >
+                <option value="">All Categories</option>
+                <option value="hardware">Hardware</option>
+                <option value="software">Software</option>
+                <option value="network">Network</option>
+                <option value="access_request">Access Request</option>
+                <option value="email">Email</option>
+                <option value="printer">Printer</option>
+                <option value="other">Other</option>
+              </select>
+              <select
+                value={ticketStatus}
+                onChange={(e) => setTicketStatus(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md"
+              >
+                <option value="">All Status</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requestor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned IT</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {tickets.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-4 text-sm text-gray-500 text-center">No tickets found</td>
+                    </tr>
+                  ) : (
+                    tickets.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{ticket.title}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{ticket.category}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            ticket.status === 'open' ? 'bg-green-100 text-green-800' :
+                            ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {ticket.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{ticket.user?.name || ticket.user_id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{ticket.assigned_it?.name || 'Unassigned'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(ticket.created_at).toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(ticket.updated_at).toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

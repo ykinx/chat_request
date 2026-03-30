@@ -72,7 +72,30 @@ export default function GlobalNotificationHandler() {
       playNotificationSound()
     }
 
+    const handleNewTicket = async ({ ticket }: any) => {
+      let granted = canNotify
+      if (!granted) {
+        granted = await requestPermission()
+      }
+      if (!granted) return
+
+      const ticketTitle = ticket?.title || 'New ticket'
+      const creator = ticket?.user?.name || 'Someone'
+      const ticketId = ticket?.id || ticket?.ticket_id || 'unknown'
+
+      sendNotification({
+        title: `New ticket created by ${creator}`,
+        body: `${ticketTitle} (${ticketId})`, 
+        icon: '/favicon.ico',
+        tag: `ticket-${ticketId}`,
+        requireInteraction: false,
+        duration: 18000
+      })
+      playNotificationSound()
+    }
+
     socket.on('new-message', handleNewMessage)
+    socket.on('new-ticket', handleNewTicket)
 
     return () => {
       socket.off('new-message', handleNewMessage)
