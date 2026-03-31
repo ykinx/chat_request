@@ -54,6 +54,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     const [userRole, setUserRole] = useState<string>('')
     const [currentUserId, setCurrentUserId] = useState<string>('')
     const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({})
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const hasRequestedNotificationPermission = useRef(false)
@@ -429,10 +430,11 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     const isAdminOrIT = userRole === 'admin' || userRole === 'it' || userRole === 'super_admin'
 
     return (
-        <div className="h-screen flex">
+        <div className="h-screen flex flex-col lg:flex-row">
             {/* Sidebar for Admin/IT */}
             {isAdminOrIT && (
-                <div className="w-80 bg-white border-r flex flex-col h-screen">
+                <div className={`bg-white border-r flex flex-col h-screen lg:w-80 ${isSidebarOpen ? 'block' : 'hidden'} lg:block`}>
+
                     {/* Sidebar Header - Fixed */}
                     <div className="bg-white border-b px-4 py-3 shrink-0">
                         <div className="flex items-center justify-between mb-2">
@@ -483,14 +485,17 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                             return (
                                 <div
                                     key={t.id}
-                                    onClick={() => router.push(`/tickets/${t.id}`)}
+                                    onClick={() => {
+                                        router.push(`/tickets/${t.id}`)
+                                        setIsSidebarOpen(false)
+                                    }}
                                     className={`p-4 border-b cursor-pointer hover:bg-gray-50 relative ${
                                         t.id === ticketId ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                                     }`}
                                 >
                                     {/* Unread Badge */}
                                     {unreadCount > 0 && (
-                                        <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                        <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-5 text-center">
                                             {unreadCount > 99 ? '99+' : unreadCount}
                                         </span>
                                     )}
@@ -523,10 +528,18 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             )}
 
             {/* Main Chat Area */}
-                    <div className="flex-1 flex flex-col bg-gray-100">
+                    <div className="flex-1 flex flex-col bg-gray-100 min-h-0">
                         {/* Header */}
-                        <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                        <div className="bg-white border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                {isAdminOrIT && (
+                                    <button
+                                        onClick={() => setIsSidebarOpen((prev) => !prev)}
+                                        className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+                                    >
+                                        {isSidebarOpen ? 'Close tickets' : 'Open tickets'}
+                                    </button>
+                                )}
                                 {!isAdminOrIT && (
                                     <button
                                         onClick={() => router.push('/dashboard')}
@@ -537,9 +550,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                         </svg>
                                     </button>
                                 )}
-                                <div>
-                                    <h1 className="font-semibold text-gray-900">{ticket.title}</h1>
-                                    <p className="text-sm text-gray-700">
+                                <div className="min-w-0">
+                                    <h1 className="truncate font-semibold text-gray-900 text-base sm:text-lg md:text-xl">{ticket.title}</h1>
+                                    <p className="truncate text-sm text-gray-700">
                                         {ticket.status === 'open' ? 'Open' : ticket.status === 'in_progress' ? 'In Progress' : 'Closed'}
                                         {isConnected && <span className="ml-2 text-green-600">● Live</span>}
                                         <span className="ml-2 px-2 py-0.5 bg-gray-200 rounded text-xs">Role: {userRole || 'loading...'}</span>
@@ -600,7 +613,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                         </div>
 
                         {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100">
+                        <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4 bg-gray-100 min-h-0">
                             {/* Ticket Image (if exists) - DEBUG */}
                             {(() => {
                                 console.log('Ticket image_url check:', ticket?.id, 'has image_url:', !!ticket?.image_url)
@@ -650,7 +663,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                             className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                                         >
                                             <div
-                                                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isOwnMessage
+                                                className={`max-w-full sm:max-w-[80%] lg:max-w-md px-4 py-2 rounded-lg ${isOwnMessage
                                                         ? 'bg-blue-500 text-white'
                                                         : 'bg-white text-gray-900 border'
                                                     }`}
@@ -711,7 +724,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
                         {/* Input */}
                         {ticket.status === 'open' && (
-                            <form onSubmit={handleSendMessage} className="bg-gray-50 border-t border-gray-200 p-3">
+                            <form onSubmit={handleSendMessage} className="bg-gray-50 border-t border-gray-200 p-3 sm:sticky sm:bottom-0 sm:left-0 sm:right-0 z-20 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] sm:shadow-none">
                                 {/* Selected Image Preview */}
                                 {selectedImage && (
                                     <div className="max-w-3xl mx-auto mb-2">
@@ -731,13 +744,13 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                         </div>
                                     </div>
                                 )}
-                                <div className="flex gap-2 items-center max-w-3xl mx-auto">
+                                <div className="flex flex-col sm:flex-row gap-2 items-end w-full max-w-3xl mx-auto">
                                     <input
                                         type="text"
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
                                         placeholder={selectedImage ? "Add a description (optional)..." : "Type a message..."}
-                                        className="flex-1 px-3 py-1.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm"
+                                        className="w-full sm:flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm"
                                     />
                                     {/* Image Upload Button */}
                                     <input
@@ -751,14 +764,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={uploadingImage || !!selectedImage}
-                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                                        className="w-full sm:w-auto px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                                     >
                                         {uploadingImage ? '...' : '📷'}
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={!newMessage.trim() && !selectedImage}
-                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                                        className="w-full sm:w-auto px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
                                     >
                                         Send
                                     </button>

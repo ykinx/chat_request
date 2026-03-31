@@ -210,49 +210,99 @@ export default function ITDashboard() {
 
   return (
     <DashboardLayout role="it">
-      <div className="px-4 py-6 sm:px-0 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto flex flex-col gap-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 mb-6">
-          <div className="flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h1 className="text-2xl font-bold text-gray-900">My Assigned Tickets</h1>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">My Assigned Tickets</h1>
+              <p className="text-xs text-gray-500">Manage and resolve assigned tickets</p>
+            </div>
           </div>
-          
-          {/* Search and Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-50">
+        </div>
+
+        {/* Ticket Count Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">{totalTickets}</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium">Total</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-green-600">{openTickets}</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium">Open</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-yellow-600">{inProgressTickets}</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium">In Progress</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-bold text-gray-700">{closedTickets}</p>
+            <p className="text-xs text-gray-500 mt-1 font-medium">Closed</p>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
                 type="text"
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
             </div>
-            
-            {/* Category Filter */}
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="block w-40 pl-3 pr-10 py-2 text-sm text-gray-900 bg-white border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-lg"
+              className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             >
               <option value="">All Categories</option>
               {TICKET_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
               ))}
             </select>
-            
-            {/* Status Filter */}
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="block w-40 pl-3 pr-10 py-2 text-sm text-gray-900 bg-white border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-lg"
+              className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             >
               <option value="">All Status</option>
               <option value="open">Open</option>
@@ -262,37 +312,17 @@ export default function ITDashboard() {
           </div>
         </div>
 
-        {/* Ticket Count Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 text-center shadow-sm">
-            <p className="text-2xl font-bold text-blue-600">{totalTickets}</p>
-            <p className="text-xs text-gray-600 mt-1">Total</p>
-          </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center shadow-sm">
-            <p className="text-2xl font-bold text-green-600">{openTickets}</p>
-            <p className="text-xs text-gray-600 mt-1">Open</p>
-          </div>
-          <div className="bg-yellow-50 rounded-lg p-4 text-center shadow-sm">
-            <p className="text-2xl font-bold text-yellow-600">{inProgressTickets}</p>
-            <p className="text-xs text-gray-600 mt-1">In Progress</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4 text-center shadow-sm">
-            <p className="text-2xl font-bold text-gray-600">{closedTickets}</p>
-            <p className="text-xs text-gray-600 mt-1">Closed</p>
-          </div>
-        </div>
-
         {/* Tickets List */}
-        <div className="space-y-3 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-3">
           {filteredTickets.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
+              <svg className="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">
+              <h3 className="mt-4 text-lg font-semibold text-gray-900">
                 {searchQuery || filterCategory || filterStatus ? 'No tickets found' : 'No assigned tickets'}
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-gray-500">
                 {searchQuery || filterCategory || filterStatus ? 'Try different search or filter criteria.' : 'Tickets assigned to you will appear here.'}
               </p>
             </div>
@@ -300,24 +330,26 @@ export default function ITDashboard() {
             currentTickets.map((ticket) => (
               <div 
                 key={ticket.id}
-                className="bg-white rounded shadow-sm border border-gray-100 overflow-hidden"
+                className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
               >
                 {/* Ticket Header */}
-                <div className="px-2 py-1.5 border-b border-gray-100 flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-gray-900">{ticket.title}</h3>
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900 flex-1">{ticket.title}</h3>
                   {/* Category Badge */}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${CATEGORY_COLORS[ticket.category as TicketCategory] || 'bg-gray-100 text-gray-700'}`}>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${CATEGORY_COLORS[ticket.category as TicketCategory] || 'bg-gray-100 text-gray-700'}`}>
                     {CATEGORY_LABELS[ticket.category as TicketCategory] || 'Other'}
                   </span>
                 </div>
                 
                 {/* Ticket Body */}
-                <div className="px-2 py-1.5 flex items-start gap-1.5">
+                <div className="px-5 py-4 flex items-start gap-4">
                   {/* Left Border Indicator */}
-                  <div className={`w-0.5 h-full min-h-8 rounded-full ${
+                  <div className={`w-1 h-full min-h-12 rounded-full ${
                     ticket.status === 'open' 
                       ? 'bg-green-500' 
                       : ticket.status === 'in_progress'
@@ -327,9 +359,9 @@ export default function ITDashboard() {
                   
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 mb-0.5">{ticket.user?.name || 'Unknown'}</p>
-                    <p className="text-xs text-gray-600 line-clamp-1">{ticket.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">Created {formatDate(ticket.created_at)}</p>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">{ticket.user?.name || 'Unknown'}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">{ticket.description}</p>
+                    <p className="text-xs text-gray-500">Created {formatDate(ticket.created_at)}</p>
                   </div>
                   
                   {/* Actions */}
@@ -376,7 +408,7 @@ export default function ITDashboard() {
                           }
                         }}
                         disabled={ticket.status === 'closed'}
-                        className={`appearance-none pl-3 pr-8 py-1.5 text-sm font-medium rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        className={`appearance-none pl-3 pr-8 py-2 text-sm font-semibold rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
                           ticket.status === 'open'
                             ? 'bg-green-100 text-green-800 focus:ring-green-500'
                             : ticket.status === 'in_progress'
@@ -398,10 +430,10 @@ export default function ITDashboard() {
                     {/* Open Ticket Button */}
                     <button
                       onClick={() => router.push(`/tickets/${ticket.id}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
                     >
                       {ticket.status === 'closed' ? 'View' : 'Open'}
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
@@ -413,46 +445,48 @@ export default function ITDashboard() {
 
           {/* Pagination */}
           {filteredTickets.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between mt-6 gap-4">
-              <span className="text-sm text-gray-600">
-                {indexOfFirstTicket + 1}-{Math.min(indexOfLastTicket, filteredTickets.length)} of {filteredTickets.length} tickets
-              </span>
-              
-              <div className="flex items-center gap-2">
-                {/* Previous Button */}
-                <button
-                  onClick={() => paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-sm text-gray-600 font-medium">
+                  {indexOfFirstTicket + 1}-{Math.min(indexOfLastTicket, filteredTickets.length)} of {filteredTickets.length} tickets
+                </span>
                 
-                {/* Page Numbers */}
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => paginate(page)}
-                      className={`w-10 h-10 text-sm font-medium rounded-lg transition-colors ${
-                        currentPage === page
-                          ? 'bg-indigo-600 text-white'
-                          : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  {/* Previous Button */}
+                  <button
+                    onClick={() => paginate(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {/* Page Numbers */}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => paginate(page)}
+                        className={`w-10 h-10 text-sm font-medium rounded-lg transition-colors ${
+                          currentPage === page
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Next Button */}
+                  <button
+                    onClick={() => paginate(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
                 </div>
-                
-                {/* Next Button */}
-                <button
-                  onClick={() => paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
               </div>
             </div>
           )}
