@@ -80,9 +80,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!socket || !isConnected) return
     socket.emit('join-admin')
+    
     socket.on('new-ticket', ({ ticket }: { ticket: any }) => {
-      setTickets(prev => [ticket, ...prev])
+      // Prevent duplicates
+      setTickets(prev => {
+        const exists = prev.some(t => t.id === ticket.id)
+        if (exists) return prev
+        return [ticket, ...prev]
+      })
     })
+    
     socket.on('ticket-updated', ({ ticket }: { ticket: any }) => {
       setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t))
     })
@@ -109,6 +116,13 @@ export default function AdminDashboard() {
         ...prev,
         [message.ticket_id]: (prev[message.ticket_id] || 0) + 1
       }))
+      
+      // Update ticket with latest message info
+      setTickets(prev => prev.map(t => 
+        t.id === message.ticket_id 
+          ? { ...t, last_message: message.message, last_message_at: new Date().toISOString() }
+          : t
+      ))
     })
 
     // Listen for messages marked as read

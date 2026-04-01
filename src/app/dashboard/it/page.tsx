@@ -88,7 +88,15 @@ export default function ITDashboard() {
           // Listen for new assigned tickets
           socket.on('ticket-assigned', ({ ticket }: { ticket: any }) => {
             console.log('IT Staff received ticket-assigned:', ticket)
-            setTickets(prev => [ticket, ...prev])
+            // Prevent duplicates by checking if ticket already exists
+            setTickets(prev => {
+              const exists = prev.some(t => t.id === ticket.id)
+              if (exists) {
+                console.log('Ticket already exists, updating instead:', ticket.id)
+                return prev.map(t => t.id === ticket.id ? ticket : t)
+              }
+              return [ticket, ...prev]
+            })
             // Also fetch unread count for newly assigned ticket
             setTimeout(() => fetchUnreadCount(ticket.id), 500)
           })
@@ -124,6 +132,13 @@ export default function ITDashboard() {
               ...prev,
               [message.ticket_id]: (prev[message.ticket_id] || 0) + 1
             }))
+            
+            // Also update the ticket in the list to show latest message preview
+            setTickets(prev => prev.map(t => 
+              t.id === message.ticket_id 
+                ? { ...t, last_message: message.message, last_message_at: new Date().toISOString() }
+                : t
+            ))
           })
           
           // Listen for messages marked as read
@@ -169,13 +184,15 @@ export default function ITDashboard() {
       const response = await fetch('/api/tickets')
       if (response.ok) {
         const data = await response.json()
-        setTickets(data.tickets)
-        setFilteredTickets(data.tickets)
+        // Remove duplicates from API response just in case
+        const uniqueTickets = Array.from(new Map(data.tickets.map((t: any) => [t.id, t])).values())
+        setTickets(uniqueTickets)
+        setFilteredTickets(uniqueTickets)
         
         // Fetch unread counts for all tickets after user ID is available
         setTimeout(() => {
-          if (currentUserId && data.tickets?.length > 0) {
-            data.tickets.forEach((ticket: any) => {
+          if (currentUserId && uniqueTickets.length > 0) {
+            uniqueTickets.forEach((ticket: any) => {
               fetchUnreadCount(ticket.id)
             })
           }
