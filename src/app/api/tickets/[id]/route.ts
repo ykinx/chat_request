@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { Ticket, User, Message } from '@/models'
 import { getCurrentUser } from '@/lib/auth'
+import { addTicketParticipant } from '@/lib/ticket-participant'
 
 export async function GET(
   request: NextRequest,
@@ -205,6 +206,9 @@ export async function PUT(
         }
         
         updateData.assigned_it_id = assigned_it_id
+        
+        // Add IT staff as participant to the ticket
+        await addTicketParticipant(ticketId, assigned_it_id)
       }
     }
 

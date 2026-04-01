@@ -62,12 +62,15 @@ export default function AdminDashboard() {
   const [itUsers, setItUsers] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [currentUserId, setCurrentUserId] = useState<string>('')
   const ticketsPerPage = 5
 
   useEffect(() => {
     fetchTickets()
     fetchITUsers()
     fetchAnalytics()
+    fetchCurrentUser()
   }, [filter, filterCategory, searchQuery])
 
   useEffect(() => {
@@ -100,15 +103,32 @@ export default function AdminDashboard() {
         tag: `ticket-${message.ticket_id}`
       })
       playNotificationSound()
+      
+      // Increment unread count for this ticket
+      setUnreadCounts(prev => ({
+        ...prev,
+        [message.ticket_id]: (prev[message.ticket_id] || 0) + 1
+      }))
+    })
+
+    // Listen for messages marked as read
+    socket.on('messages-marked-read', ({ ticket_id, user_id, unread_count }: { ticket_id: string, user_id: string, unread_count: number }) => {
+      if (user_id === currentUserId) {
+        setUnreadCounts(prev => ({
+          ...prev,
+          [ticket_id]: unread_count
+        }))
+      }
     })
 
     return () => {
       socket.off('new-ticket')
       socket.off('ticket-updated')
       socket.off('new-message')
+      socket.off('messages-marked-read')
       socket.emit('leave-admin')
     }
-  }, [socket, isConnected])
+  }, [socket, isConnected, currentUserId])
 
   const fetchAnalytics = async () => {
     try {
@@ -137,6 +157,35 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.user) {
+          setCurrentUserId(data.user.id)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+    }
+  }
+
+  const fetchUnreadCount = async (ticketId: string) => {
+    try {
+      const response = await fetch(`/api/tickets/unread-count?ticket_id=${ticketId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setUnreadCounts(prev => ({
+          ...prev,
+          [ticketId]: data.unread_count || 0
+        }))
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error)
+    }
+  }
+
   const fetchTickets = async () => {
     try {
       const params = new URLSearchParams()
@@ -151,6 +200,15 @@ export default function AdminDashboard() {
           filtered = filtered.filter((t: any) => t.status === filter)
         }
         setTickets(filtered)
+        
+        // Fetch unread counts for all tickets after a short delay to ensure user ID is set
+        setTimeout(() => {
+          if (currentUserId && filtered.length > 0) {
+            filtered.forEach((ticket: any) => {
+              fetchUnreadCount(ticket.id)
+            })
+          }
+        }, 100)
       }
     } catch (error) {
       console.error('Error fetching tickets:', error)
@@ -166,7 +224,23 @@ export default function AdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assigned_it_id: assignedTo, status: assignedTo ? 'in_progress' : 'open' })
       })
-      if (response.ok) { fetchTickets(); fetchAnalytics() }
+      if (response.ok) {
+        fetchTickets()
+        fetchAnalytics()
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: 'Ticket assigned successfully',
+          timer: 2000
+        })
+      } else {
+        const error = await response.json()
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.error || 'Failed to assign ticket'
+        })
+      }
     } catch (error) {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to assign ticket' })
     }
@@ -371,14 +445,14 @@ export default function AdminDashboard() {
                 placeholder="Search tickets..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" 
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-black" 
               />
             </div>
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-black">
               <option value="">All Categories</option>
               {TICKET_CATEGORIES.map((cat) => (<option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>))}
             </select>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)} className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
+            <select value={filter} onChange={(e) => setFilter(e.target.value)} className="px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-black">
               <option value="all">All Tickets</option>
               <option value="open">Open</option>
               <option value="in_progress">In Progress</option>
@@ -402,42 +476,67 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {currentTickets.map((ticket) => (
-                <div key={ticket.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/80 transition-colors">
-                  <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" onClick={(e) => e.stopPropagation()} />
-                  <div
-                    className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
-                    onClick={() => router.push(`/tickets/${ticket.id}`)}
-                  >
-                    <div className="w-10 h-10 bg-linear-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0 shadow-sm">
-                      {ticket.user?.name?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-gray-900">{ticket.user?.name || 'Unknown'}</span>
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${CATEGORY_COLORS[ticket.category as keyof typeof CATEGORY_COLORS] || 'bg-gray-100 text-gray-700'}`}>{CATEGORY_LABELS[ticket.category as keyof typeof CATEGORY_LABELS] || ticket.category}</span>
-                      </div>
-                    <p className="text-sm text-gray-600 truncate">{ticket.description}</p>
-                      <p className="text-xs text-gray-500 mt-1.5">Updated at: {new Date(ticket.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={ticket.status}
-                      onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`text-xs px-3 py-1.5 rounded-full border-0 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 cursor-pointer ${getStatusColor(ticket.status)}`}
-                    >
-                      <option value="open" className="text-gray-900 bg-white">Open</option>
-                      <option value="in_progress" className="text-gray-900 bg-white">In Progress</option>
-                      <option value="closed" className="text-gray-900 bg-white">Closed</option>
-                    </select>
-                    {ticket.status !== 'closed' && (
-                      <button onClick={(e) => { e.stopPropagation(); handleCloseTicket(ticket.id) }} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 font-medium transition-colors">Close</button>
+              {currentTickets.map((ticket) => {
+                const unreadCount = unreadCounts[ticket.id] || 0
+                return (
+                  <div key={ticket.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/80 transition-colors relative">
+                    {/* Unread Badge */}
+                    {unreadCount > 0 && (
+                      <span className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-5 text-center z-10">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
                     )}
+                    <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" onClick={(e) => e.stopPropagation()} />
+                    <div
+                      className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
+                      onClick={() => router.push(`/tickets/${ticket.id}`)}
+                    >
+                      <div className="w-10 h-10 bg-linear-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0 shadow-sm">
+                        {ticket.user?.name?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-gray-900">{ticket.user?.name || 'Unknown'}</span>
+                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${CATEGORY_COLORS[ticket.category as keyof typeof CATEGORY_COLORS] || 'bg-gray-100 text-gray-700'}`}>{CATEGORY_LABELS[ticket.category as keyof typeof CATEGORY_LABELS] || ticket.category}</span>
+                        </div>
+                      <p className="text-sm text-gray-600 truncate">{ticket.description}</p>
+                        <p className="text-xs text-gray-500 mt-1.5">Updated at: {new Date(ticket.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* IT Staff Assignment Dropdown - Only for open/in_progress tickets */}
+                      {ticket.status !== 'closed' && (
+                        <select
+                          value={ticket.assigned_it_id || ''}
+                          onChange={(e) => handleAssignTicket(ticket.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-gray-700 max-w-[150px]"
+                        >
+                          <option value="">Assign IT...</option>
+                          {itUsers.map((it) => (
+                            <option key={it.id} value={it.id}>
+                              {it.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <select
+                        value={ticket.status}
+                        onChange={(e) => handleStatusChange(ticket.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`text-xs px-3 py-1.5 rounded-full border-0 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 cursor-pointer ${getStatusColor(ticket.status)}`}
+                      >
+                        <option value="open" className="text-gray-900 bg-white">Open</option>
+                        <option value="in_progress" className="text-gray-900 bg-white">In Progress</option>
+                        <option value="closed" className="text-gray-900 bg-white">Closed</option>
+                      </select>
+                      {ticket.status !== 'closed' && (
+                        <button onClick={(e) => { e.stopPropagation(); handleCloseTicket(ticket.id) }} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 font-medium transition-colors">Close</button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

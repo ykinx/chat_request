@@ -500,13 +500,13 @@ export default function SuperAdminDashboard() {
                   value={ticketSearch}
                   onChange={(e) => setTicketSearch(e.target.value)}
                   placeholder="Search tickets..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
                 />
               </div>
               <select
                 value={ticketCategory}
                 onChange={(e) => setTicketCategory(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
               >
                 <option value="">All Categories</option>
                 <option value="hardware">Hardware</option>
@@ -520,7 +520,7 @@ export default function SuperAdminDashboard() {
               <select
                 value={ticketStatus}
                 onChange={(e) => setTicketStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-black"
               >
                 <option value="">All Status</option>
                 <option value="open">Open</option>

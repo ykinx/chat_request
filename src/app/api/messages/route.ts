@@ -308,6 +308,7 @@ export async function POST(request: NextRequest) {
       })
 
       // Also broadcast to admin room and assigned IT room (if assigned)
+      console.log('Emitting new-message to admin-room and IT room')
       io.to('admin-room').emit('new-message', formattedMessage)
       io.to('admin-room').emit('unread-count-updated', {
         ticket_id,
@@ -316,11 +317,14 @@ export async function POST(request: NextRequest) {
 
       if (ticket.assigned_it_id) {
         const itId = (ticket.assigned_it_id as any)?._id?.toString() || ticket.assigned_it_id.toString()
+        console.log(`Emitting new-message to IT room: it-${itId}`)
         io.to(`it-${itId}`).emit('new-message', formattedMessage)
         io.to(`it-${itId}`).emit('unread-count-updated', {
           ticket_id,
           updated_by: user.id
         })
+      } else {
+        console.log('No IT staff assigned to this ticket')
       }
     }
 
