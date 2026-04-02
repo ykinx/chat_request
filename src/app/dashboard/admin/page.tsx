@@ -50,6 +50,18 @@ interface AnalyticsData {
   statusTrend: { date: string; open: number; in_progress: number; closed: number }[]
 }
 
+// Helper: format tanggal + waktu sesuai locale Indonesia
+const formatDateTime = (dateString: string): string => {
+  const date = new Date(dateString)
+  return date.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function AdminDashboard() {
   const router = useRouter()
   const { socket, isConnected } = useSocket()
@@ -82,7 +94,6 @@ export default function AdminDashboard() {
     socket.emit('join-admin')
     
     socket.on('new-ticket', ({ ticket }: { ticket: any }) => {
-      // Prevent duplicates
       setTickets(prev => {
         const exists = prev.some(t => t.id === ticket.id)
         if (exists) return prev
@@ -111,13 +122,11 @@ export default function AdminDashboard() {
       })
       playNotificationSound()
       
-      // Increment unread count for this ticket
       setUnreadCounts(prev => ({
         ...prev,
         [message.ticket_id]: (prev[message.ticket_id] || 0) + 1
       }))
       
-      // Update ticket with latest message info
       setTickets(prev => prev.map(t => 
         t.id === message.ticket_id 
           ? { ...t, last_message: message.message, last_message_at: new Date().toISOString() }
@@ -125,7 +134,6 @@ export default function AdminDashboard() {
       ))
     })
 
-    // Listen for messages marked as read
     socket.on('messages-marked-read', ({ ticket_id, user_id, unread_count }: { ticket_id: string, user_id: string, unread_count: number }) => {
       if (user_id === currentUserId) {
         setUnreadCounts(prev => ({
@@ -215,7 +223,6 @@ export default function AdminDashboard() {
         }
         setTickets(filtered)
         
-        // Fetch unread counts for all tickets after a short delay to ensure user ID is set
         setTimeout(() => {
           if (currentUserId && filtered.length > 0) {
             filtered.forEach((ticket: any) => {
@@ -500,7 +507,6 @@ export default function AdminDashboard() {
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     )}
-                    <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" onClick={(e) => e.stopPropagation()} />
                     <div
                       className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
                       onClick={() => router.push(`/tickets/${ticket.id}`)}
@@ -513,8 +519,11 @@ export default function AdminDashboard() {
                           <span className="text-sm font-semibold text-gray-900">{ticket.user?.name || 'Unknown'}</span>
                           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${CATEGORY_COLORS[ticket.category as keyof typeof CATEGORY_COLORS] || 'bg-gray-100 text-gray-700'}`}>{CATEGORY_LABELS[ticket.category as keyof typeof CATEGORY_LABELS] || ticket.category}</span>
                         </div>
-                      <p className="text-sm text-gray-600 truncate">{ticket.description}</p>
-                        <p className="text-xs text-gray-500 mt-1.5">Updated at: {new Date(ticket.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-sm text-gray-600 truncate">{ticket.description}</p>
+                        {/* ✅ UPDATED: Tampilkan tanggal + waktu lengkap dalam format Indonesia */}
+                        <p className="text-xs text-gray-500 mt-1.5">
+                          Updated: {formatDateTime(ticket.updatedAt)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -524,7 +533,7 @@ export default function AdminDashboard() {
                           value={ticket.assigned_it_id || ''}
                           onChange={(e) => handleAssignTicket(ticket.id, e.target.value)}
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-gray-700 max-w-[150px]"
+                          className="max-w-[150px] text-xs px-3 py-1.5 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="">Assign IT...</option>
                           {itUsers.map((it) => (

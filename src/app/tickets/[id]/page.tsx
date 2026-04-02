@@ -6,6 +6,24 @@ import { useSocket } from '@/lib/socket'
 import Swal from 'sweetalert2'
 import { canSendNotifications, sendNotification, useNotificationManager, playNotificationSound, closeAllNotifications } from '@/lib/notifications'
 
+// Helper function to format date nicely
+function formatDate(dateString: string) {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' })
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Helper function to format time nicely
+function formatTime(dateString: string) {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+}
+
 interface Message {
     id: string
     ticket_id: string
@@ -25,6 +43,7 @@ interface Ticket {
     title: string
     status: 'open' | 'in_progress' | 'closed'
     user_id: string
+    created_at: string
     image_url?: string
     user?: {
         id: string
@@ -134,7 +153,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             // Listen for messages marked as read
             socket.on('messages-marked-read', ({ ticket_id, user_id, unread_count }: { ticket_id: string, user_id: string, unread_count: number }) => {
                 console.log(`User ${user_id} marked messages as read in ticket ${ticket_id}, unread: ${unread_count}`)
-                // We don't need to do anything here as each client manages their own state
             })
 
             return () => {
@@ -154,7 +172,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     useEffect(() => {
         if (!ticketId || !currentUserId) return
 
-        // Mark as read when tab is visible and user is viewing this ticket
         if (isTabVisible) {
             console.log('Tab visible, marking messages as read for ticket:', ticketId)
             markAsRead(ticketId)
@@ -224,13 +241,11 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 body: JSON.stringify({ ticket_id: tId })
             })
             
-            // Reset local unread count
             setUnreadCounts(prev => ({
                 ...prev,
                 [tId]: 0
             }))
 
-            // Also emit via socket for real-time sync
             if (socket && currentUserId) {
                 socket.emit('mark-as-read', { ticketId: tId, userId: currentUserId })
             }
@@ -248,7 +263,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 console.log('Tickets fetched:', data.tickets?.length || 0)
                 setTickets(data.tickets || [])
                 
-                // Fetch unread counts for all tickets
                 if (currentUserId && data.tickets?.length > 0) {
                     data.tickets.forEach((ticket: any) => {
                         fetchUnreadCount(ticket.id, currentUserId)
@@ -277,34 +291,20 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             if (response.ok) {
                 const data = await response.json()
                 console.log('Image uploaded, URL length:', data.image_url?.length)
-                console.log('Image URL preview:', data.image_url?.substring(0, 100) + '...')
                 setSelectedImage(data.image_url)
             } else {
                 const errorText = await response.text()
                 console.error('Upload error status:', response.status)
-                console.error('Upload error text:', errorText)
                 let errorMessage = 'Failed to upload image'
                 try {
                     const errorJson = JSON.parse(errorText)
                     errorMessage = errorJson.error || errorMessage
-                } catch (e) {
-                    // Not JSON response
-                }
-                Swal.fire({
-                    title: "Error",
-                    text: errorMessage,
-                    icon: "error",
-                    draggable: true
-                })
+                } catch (e) {}
+                Swal.fire({ title: "Error", text: errorMessage, icon: "error", draggable: true })
             }
         } catch (error) {
             console.error('Error uploading image:', error)
-            Swal.fire({
-                title: "Error",
-                text: 'Failed to upload image',
-                icon: "error",
-                draggable: true
-            })
+            Swal.fire({ title: "Error", text: 'Failed to upload image', icon: "error", draggable: true })
         } finally {
             setUploadingImage(false)
         }
@@ -325,24 +325,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 fetch(`/api/messages?ticket_id=${ticketId}`)
             ])
 
-            console.log('Ticket response:', ticketRes.status)
-            console.log('Messages response:', messagesRes.status)
-
             if (ticketRes.ok && messagesRes.ok) {
                 const ticketData = await ticketRes.json()
                 const messagesData = await messagesRes.json()
-                console.log('Ticket data:', ticketData)
-                console.log('Messages data:', messagesData)
-                // Log messages with images for debugging
-                const messagesWithImages = messagesData.messages?.filter((m: Message) => m.image_url) || []
-                console.log('Messages with images:', messagesWithImages)
                 setTicket(ticketData.ticket)
                 setMessages(messagesData.messages || [])
             } else {
-                const ticketError = await ticketRes.text()
-                const messagesError = await messagesRes.text()
-                console.error('Ticket error:', ticketError)
-                console.error('Messages error:', messagesError)
+                console.error('Ticket error:', await ticketRes.text())
+                console.error('Messages error:', await messagesRes.text())
             }
         } catch (error) {
             console.error('Error fetching data:', error)
@@ -354,12 +344,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
         
-        if (!newMessage.trim() && !selectedImage) {
-            return
-        }
+        if (!newMessage.trim() && !selectedImage) return
 
         try {
-            // Use FormData for large image uploads
             const formData = new FormData()
             formData.append('ticket_id', ticketId)
             formData.append('message', newMessage)
@@ -387,7 +374,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     fileInputRef.current.value = ''
                 }
             } else {
-                console.error('Failed to send message:', response.status, response.statusText, data)
+                console.error('Failed to send message:', response.status, data)
                 Swal.fire({
                     title: "Error",
                     text: data.error || data.message || `Failed to send message: ${response.status}`,
@@ -406,22 +393,18 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         }
     }
 
-
-
     if (!ticket) {
         return (
-            <div className="h-screen flex flex-col bg-[#d9dbd5]">
-                <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center bg-white p-8 rounded-lg shadow-lg">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-2">Ticket not found</h2>
-                        <p className="text-gray-500 mb-4">The ticket you are looking for does not exist.</p>
-                        <button
-                            onClick={() => router.push('/dashboard')}
-                            className="px-4 py-2 bg-[#4a6b4a] text-white rounded-lg hover:bg-[#3d5a3d] transition-colors"
-                        >
-                            Back to Dashboard
-                        </button>
-                    </div>
+            <div className="flex items-center justify-center bg-[#d9dbd5]" style={{ height: '100dvh' }}>
+                <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Ticket not found</h2>
+                    <p className="text-gray-500 mb-4">The ticket you are looking for does not exist.</p>
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="px-4 py-2 bg-[#4a6b4a] text-white rounded-lg hover:bg-[#3d5a3d] transition-colors"
+                    >
+                        Back to Dashboard
+                    </button>
                 </div>
             </div>
         )
@@ -430,12 +413,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     const isAdminOrIT = userRole === 'admin' || userRole === 'it' || userRole === 'super_admin'
 
     return (
-        <div className="h-screen flex flex-col lg:flex-row">
-            {/* Sidebar for Admin/IT */}
-            {isAdminOrIT && (
-                <div className={`bg-white border-r flex flex-col h-screen lg:w-80 ${isSidebarOpen ? 'block' : 'hidden'} lg:block`}>
+        // ✅ FIX 1: Root container — h-screen + 100dvh untuk mobile, overflow-hidden wajib
+        <div className="flex overflow-hidden" style={{ height: '100dvh' }}>
 
-                    {/* Sidebar Header - Fixed */}
+            {/* ✅ FIX 2: Sidebar — flex-col + min-h-0 agar child bisa scroll */}
+            {isAdminOrIT && (
+                <div className={`bg-white border-r flex flex-col min-h-0 lg:w-80 overflow-hidden ${isSidebarOpen ? 'block' : 'hidden'} lg:flex`}>
+
+                    {/* Sidebar Header — shrink-0 agar tidak ikut menyusut */}
                     <div className="bg-white border-b px-4 py-3 shrink-0">
                         <div className="flex items-center justify-between mb-2">
                             <div>
@@ -478,8 +463,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                         </div>
                     </div>
 
-                    {/* Tickets List - Scrollable */}
-                    <div className="flex-1 overflow-y-auto">
+                    {/* ✅ FIX 3: Ticket list — flex-1 + min-h-0 + overflow-y-auto agar bisa scroll */}
+                    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
                         {tickets.map((t) => {
                             const unreadCount = unreadCounts[t.id] || 0
                             return (
@@ -515,11 +500,16 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                         </span>
                                     </div>
                                     <p className="text-xs text-gray-600 truncate">{t.title}</p>
-                                    {t.assigned_it && (
-                                        <p className="text-xs text-blue-600 mt-1">
-                                            Assigned: {t.assigned_it.name}
-                                        </p>
-                                    )}
+                                    <div className="flex items-center justify-between mt-1">
+                                        {t.assigned_it && (
+                                            <p className="text-xs text-blue-600">
+                                                Assigned: {t.assigned_it.name}
+                                            </p>
+                                        )}
+                                        <span className="text-xs text-gray-400 ml-auto">
+                                            {formatDate(t.created_at)}
+                                        </span>
+                                    </div>
                                 </div>
                             )
                         })}
@@ -527,258 +517,242 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 </div>
             )}
 
-            {/* Main Chat Area */}
-                    <div className="flex-1 flex flex-col bg-gray-100 min-h-0">
-                        {/* Header */}
-                        <div className="bg-white border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                {isAdminOrIT && (
-                                    <button
-                                        onClick={() => setIsSidebarOpen((prev) => !prev)}
-                                        className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-                                    >
-                                        {isSidebarOpen ? 'Close tickets' : 'Open tickets'}
-                                    </button>
-                                )}
-                                {!isAdminOrIT && (
-                                    <button
-                                        onClick={() => router.push('/dashboard')}
-                                        className="p-2 rounded-lg hover:bg-gray-100"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                        </svg>
-                                    </button>
-                                )}
-                                <div className="min-w-0">
-                                    <h1 className="truncate font-semibold text-gray-900 text-base sm:text-lg md:text-xl">{ticket.title}</h1>
-                                    <p className="truncate text-sm text-gray-700">
-                                        {ticket.status === 'open' ? 'Open' : ticket.status === 'in_progress' ? 'In Progress' : 'Closed'}
-                                        {isConnected && <span className="ml-2 text-green-600">● Live</span>}
-                                        <span className="ml-2 px-2 py-0.5 bg-gray-200 rounded text-xs">Role: {userRole || 'loading...'}</span>
-                                    </p>
-                                </div>
-                            </div>
-                            {/* Status Update Dropdown for Admin/IT */}
-                            {isAdminOrIT && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-700">Status:</span>
-                                    <select
-                                        value={ticket.status}
-                                        onChange={async (e) => {
-                                            const newStatus = e.target.value as 'open' | 'in_progress' | 'closed'
-                                            if (newStatus === 'closed') {
-                                                const result = await Swal.fire({
-                                                    title: "Close this ticket?",
-                                                    text: "Are you sure you want to close this ticket?",
-                                                    showDenyButton: true,
-                                                    showCancelButton: false,
-                                                    confirmButtonText: "Yes, close it",
-                                                    denyButtonText: "No, keep it open",
-                                                    icon: "question"
-                                                })
-                                                if (!result.isConfirmed) {
-                                                    e.target.value = ticket.status
-                                                    return
-                                                }
-                                            }
-                                            try {
-                                                const response = await fetch(`/api/tickets/${ticketId}`, {
-                                                    method: 'PUT',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ status: newStatus })
-                                                })
-                                                if (response.ok) {
-                                                    setTicket({ ...ticket, status: newStatus })
-                                                    Swal.fire({
-                                                        title: "Updated!",
-                                                        text: "Ticket status has been updated",
-                                                        icon: "success",
-                                                        draggable: true
-                                                    })
-                                                }
-                                            } catch (error) {
-                                                console.error('Error updating status:', error)
-                                            }
-                                        }}
-                                        disabled={ticket.status === 'closed'}
-                                        className="px-3 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
-                                    >
-                                        <option value="open">Open</option>
-                                        <option value="in_progress">In Progress</option>
-                                        <option value="closed">Closed</option>
-                                    </select>
-                                </div>
-                            )}
-                        </div>
+            {/* ✅ FIX 4: Main chat area — flex-1 + min-h-0 + min-w-0 */}
+            <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-gray-100 overflow-hidden">
 
-                        {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4 bg-gray-100 min-h-0">
-                            {/* Ticket Image (if exists) - DEBUG */}
-                            {(() => {
-                                console.log('Ticket image_url check:', ticket?.id, 'has image_url:', !!ticket?.image_url)
-                                if (ticket?.image_url) {
-                                    console.log('Ticket image URL length:', ticket.image_url.length)
-                                    console.log('Ticket image URL starts with:', ticket.image_url.substring(0, 50))
-                                }
-                                return null
-                            })()}
-                            {ticket?.image_url && (
-                                <div className="flex justify-center">
-                                    <div className="bg-white rounded-lg shadow-sm p-4 max-w-md w-full">
-                                        <p className="text-xs text-gray-500 mb-2 font-medium">📎 Ticket Attachment</p>
-                                        <a 
-                                            href={ticket.image_url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="block"
-                                        >
-                                            <img 
-                                                src={ticket.image_url} 
-                                                alt="Ticket attachment" 
-                                                className="max-w-full max-h-64 rounded-lg border border-gray-200 mx-auto"
-                                                onError={(e) => {
-                                                    console.error('Ticket image failed to load')
-                                                    e.currentTarget.style.display = 'none'
-                                                }}
-                                            />
-                                        </a>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full">
-                                    <p className="text-gray-500 text-sm">No messages yet. Start the conversation!</p>
-                                </div>
-                            ) : (
-                                messages.map((message) => {
-                                    const isOwnMessage = message.sender_id === currentUserId
-                                    if (message.image_url) {
-                                        console.log('Rendering message with image:', message.id, 'Image URL length:', message.image_url.length)
+                {/* Header — shrink-0 agar tidak ikut menyusut */}
+                <div className="bg-white border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {isAdminOrIT && (
+                            <button
+                                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+                            >
+                                {isSidebarOpen ? 'Close tickets' : 'Open tickets'}
+                            </button>
+                        )}
+                        {!isAdminOrIT && (
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="p-2 rounded-lg hover:bg-gray-100"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                        )}
+                        <div className="min-w-0">
+                            <h1 className="truncate font-semibold text-gray-900 text-base sm:text-lg md:text-xl">{ticket.title}</h1>
+                            <p className="truncate text-sm text-gray-700">
+                                {ticket.status === 'open' ? 'Open' : ticket.status === 'in_progress' ? 'In Progress' : 'Closed'}
+                                {isConnected && <span className="ml-2 text-green-600">● Live</span>}
+                                <span className="ml-2 px-2 py-0.5 bg-gray-200 rounded text-xs">Role: {userRole || 'loading...'}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Status Update Dropdown for Admin/IT */}
+                    {isAdminOrIT && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-700">Status:</span>
+                            <select
+                                value={ticket.status}
+                                onChange={async (e) => {
+                                    const newStatus = e.target.value as 'open' | 'in_progress' | 'closed'
+                                    if (newStatus === 'closed') {
+                                        const result = await Swal.fire({
+                                            title: "Close this ticket?",
+                                            text: "Are you sure you want to close this ticket?",
+                                            showDenyButton: true,
+                                            showCancelButton: false,
+                                            confirmButtonText: "Yes, close it",
+                                            denyButtonText: "No, keep it open",
+                                            icon: "question"
+                                        })
+                                        if (!result.isConfirmed) {
+                                            e.target.value = ticket.status
+                                            return
+                                        }
                                     }
-                                    return (
-                                        <div
-                                            key={message.id}
-                                            className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-                                        >
-                                            <div
-                                                className={`max-w-full sm:max-w-[80%] lg:max-w-md px-4 py-2 rounded-lg ${isOwnMessage
-                                                        ? 'bg-blue-500 text-white'
-                                                        : 'bg-white text-gray-900 border'
-                                                    }`}
-                                            >
-                                                {!isOwnMessage && message.sender && (
-                                                    <p className="text-xs font-medium mb-1 opacity-75">
-                                                        {message.sender.name}
-                                                    </p>
-                                                )}
-                                                {/* Image in message - DEBUG */}
-                                                {(() => {
-                                                    console.log('Checking message for image:', message.id, 'has image_url:', !!message.image_url)
-                                                    if (message.image_url) {
-                                                        console.log('Image URL type:', typeof message.image_url)
-                                                        console.log('Image URL length:', message.image_url.length)
-                                                        console.log('Image URL starts with:', message.image_url.substring(0, 30))
-                                                    }
-                                                    return null
-                                                })()}
-                                                {message.image_url ? (
-                                                    <div className="mb-2">
-                                                        <a 
-                                                            href={message.image_url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
-                                                            className="block"
-                                                        >
-                                                            <img 
-                                                                src={message.image_url} 
-                                                                alt="Shared image" 
-                                                                className="max-w-full max-h-48 rounded-lg border border-gray-200"
-                                                                style={{ display: 'block' }}
-                                                                onError={(e) => {
-                                                                    console.error('Image failed to load for message:', message.id)
-                                                                    console.error('Image URL starts with:', message.image_url?.substring(0, 50))
-                                                                    const img = e.currentTarget
-                                                                    img.style.display = 'none'
-                                                                    const parent = img.parentElement
-                                                                    if (parent) {
-                                                                        parent.innerHTML = '<span class="text-xs text-red-400 underline">Image failed to load</span>'
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </a>
-                                                    </div>
-                                                ) : null}
-                                                {message.message && <p>{message.message}</p>}
-                                                <p className={`text-xs mt-1 ${isOwnMessage ? 'text-blue-100' : 'text-gray-500'}`}>
-                                                    {new Date(message.created_at).toLocaleTimeString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )
-                                })
-                            )}
-                            <div ref={messagesEndRef} />
+                                    try {
+                                        const response = await fetch(`/api/tickets/${ticketId}`, {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ status: newStatus })
+                                        })
+                                        if (response.ok) {
+                                            setTicket({ ...ticket, status: newStatus })
+                                            Swal.fire({
+                                                title: "Updated!",
+                                                text: "Ticket status has been updated",
+                                                icon: "success",
+                                                draggable: true
+                                            })
+                                        }
+                                    } catch (error) {
+                                        console.error('Error updating status:', error)
+                                    }
+                                }}
+                                disabled={ticket.status === 'closed'}
+                                className="px-3 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                            >
+                                <option value="open">Open</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="closed">Closed</option>
+                            </select>
                         </div>
+                    )}
+                </div>
 
-                        {/* Input */}
-                        {ticket.status === 'open' && (
-                            <form onSubmit={handleSendMessage} className="bg-gray-50 border-t border-gray-200 p-3 sm:sticky sm:bottom-0 sm:left-0 sm:right-0 z-20 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] sm:shadow-none">
-                                {/* Selected Image Preview */}
-                                {selectedImage && (
-                                    <div className="max-w-3xl mx-auto mb-2">
-                                        <div className="relative inline-block">
-                                            <img 
-                                                src={selectedImage} 
-                                                alt="Selected" 
-                                                className="h-16 w-16 object-cover rounded-lg border border-gray-300"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={removeSelectedImage}
-                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="flex flex-col sm:flex-row gap-2 items-end w-full max-w-3xl mx-auto">
-                                    <input
-                                        type="text"
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        placeholder={selectedImage ? "Add a description (optional)..." : "Type a message..."}
-                                        className="w-full sm:flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm"
+                {/* ✅ FIX 5: Messages scroll area — flex-1 + min-h-0 + overflow-y-auto */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-100 scrollbar-thin">
+
+                    {/* Ticket Image (if exists) */}
+                    {ticket?.image_url && (
+                        <div className="flex justify-center">
+                            <div className="bg-white rounded-lg shadow-sm p-4 max-w-md w-full">
+                                <p className="text-xs text-gray-500 mb-2 font-medium">📎 Ticket Attachment</p>
+                                <a
+                                    href={ticket.image_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                >
+                                    <img
+                                        src={ticket.image_url}
+                                        alt="Ticket attachment"
+                                        className="max-w-full max-h-64 rounded-lg border border-gray-200 mx-auto"
+                                        onError={(e) => {
+                                            console.error('Ticket image failed to load')
+                                            e.currentTarget.style.display = 'none'
+                                        }}
                                     />
-                                    {/* Image Upload Button */}
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        onChange={handleImageSelect}
-                                        accept="image/*"
-                                        className="hidden"
+                                </a>
+                            </div>
+                        </div>
+                    )}
+
+                    {messages.length === 0 ? (
+                        <div className="flex items-center justify-center h-full">
+                            <p className="text-gray-500 text-sm">No messages yet. Start the conversation!</p>
+                        </div>
+                    ) : (
+                        messages.map((message) => {
+                            const isOwnMessage = message.sender_id === currentUserId
+                            return (
+                                <div
+                                    key={message.id}
+                                    className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                                >
+                                    <div
+                                        className={`max-w-full sm:max-w-[80%] lg:max-w-md px-4 py-2 rounded-lg ${
+                                            isOwnMessage
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-white text-gray-900 border'
+                                        }`}
+                                    >
+                                        {!isOwnMessage && message.sender && (
+                                            <p className="text-xs font-medium mb-1 opacity-75">
+                                                {message.sender.name}
+                                            </p>
+                                        )}
+                                        {message.image_url ? (
+                                            <div className="mb-2">
+                                                <a
+                                                    href={message.image_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="block"
+                                                >
+                                                    <img
+                                                        src={message.image_url}
+                                                        alt="Shared image"
+                                                        className="max-w-full max-h-48 rounded-lg border border-gray-200"
+                                                        style={{ display: 'block' }}
+                                                        onError={(e) => {
+                                                            console.error('Image failed to load for message:', message.id)
+                                                            const img = e.currentTarget
+                                                            img.style.display = 'none'
+                                                            const parent = img.parentElement
+                                                            if (parent) {
+                                                                parent.innerHTML = '<span class="text-xs text-red-400 underline">Image failed to load</span>'
+                                                            }
+                                                        }}
+                                                    />
+                                                </a>
+                                            </div>
+                                        ) : null}
+                                        {message.message && <p>{message.message}</p>}
+                                        <p className={`text-xs mt-1 ${isOwnMessage ? 'text-blue-100' : 'text-gray-500'}`}>
+                                            {formatTime(message.created_at)}
+                                        </p>
+                                    </div>
+                                </div>
+                            )
+                        })
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {ticket.status === 'open' && (
+                    <form
+                        onSubmit={handleSendMessage}
+                        className="bg-gray-50 border-t border-gray-200 p-3 shrink-0 z-20"
+                    >
+                        {/* Selected Image Preview */}
+                        {selectedImage && (
+                            <div className="max-w-3xl mx-auto mb-2">
+                                <div className="relative inline-block">
+                                    <img
+                                        src={selectedImage}
+                                        alt="Selected"
+                                        className="h-16 w-16 object-cover rounded-lg border border-gray-300"
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        disabled={uploadingImage || !!selectedImage}
-                                        className="w-full sm:w-auto px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                                        onClick={removeSelectedImage}
+                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600"
                                     >
-                                        {uploadingImage ? '...' : '📷'}
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={!newMessage.trim() && !selectedImage}
-                                        className="w-full sm:w-auto px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                                    >
-                                        Send
+                                        ×
                                     </button>
                                 </div>
-                            </form>
+                            </div>
                         )}
-                    </div>
-                </div>
-            )
-            }
+                        <div className="flex flex-col sm:flex-row gap-2 items-end w-full max-w-3xl mx-auto">
+                            <input
+                                type="text"
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                placeholder={selectedImage ? "Add a description (optional)..." : "Type a message..."}
+                                className="w-full sm:flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500 text-sm"
+                            />
+                            {/* Image Upload Button */}
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImageSelect}
+                                accept="image/*"
+                                className="hidden"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingImage || !!selectedImage}
+                                className="w-full sm:w-auto px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                            >
+                                {uploadingImage ? '...' : '📷'}
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={!newMessage.trim() && !selectedImage}
+                                className="w-full sm:w-auto px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                            >
+                                Send
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </div>
+        </div>
+    )
+}
