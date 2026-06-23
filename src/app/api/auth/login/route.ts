@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { User } from '@/models'
-import { hashPassword, verifyPassword } from '@/lib/utils'
+import { verifyPassword } from '@/lib/utils'
 import { generateToken, JWTPayload } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { logAction } from '@/lib/audit'
 
+// Timeout wrapper to prevent hanging requests
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ])
+}
+
 export async function POST(request: NextRequest) {
   try {
-    await connectToDatabase()
+    // Connect to database with 10s timeout
+    await withTimeout(
+      connectToDatabase(),
+      10000,
+      'Database connection timeout. Please ensure MongoDB is running.'
+    )
+
     const { identifier, password } = await request.json()
 
     // Validate input
@@ -31,9 +47,6 @@ export async function POST(request: NextRequest) {
     })
 
     console.log('User found:', user ? 'Yes' : 'No')
-    if (user) {
-      console.log('User email:', user.email, 'work_id:', user.work_id)
-    }
 
     if (!user) {
       return NextResponse.json(
@@ -69,13 +82,11 @@ export async function POST(request: NextRequest) {
       path: '/',
     })
 
-    // Log the login action
+    // Log the login action (fire-and-forget, don't block login response)
     const ipAddress = request.headers.get('x-forwarded-for') || 'unknown'
-    await logAction(user._id.toString(), 'USER_LOGIN', `User logged in`, ipAddress)
+    logAction(user._id.toString(), 'USER_LOGIN', 'User logged in', ipAddress).catch(() => {})
 
     // Return user data (without password)
-    const { password: _, ...userWithoutPassword } = user.toObject()
-
     return NextResponse.json({
       user: {
         id: user._id.toString(),
@@ -89,8 +100,12 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Login error:', error)
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    // Return a descriptive error to help diagnose the issue
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: message.includes('timeout') || message.includes('Mongo') 
+        ? 'Server is currently unavailable. Please ensure MongoDB is running and try again.' 
+        : 'Internal server error' },
       { status: 500 }
     )
   }

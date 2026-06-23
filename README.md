@@ -1,6 +1,6 @@
 # Role-Based Ticketing System
 
-A comprehensive ticket management system with role-based access control built with Next.js, TypeScript, and Prisma.
+A comprehensive real-time ticket management system with role-based access control, built with Next.js, TypeScript, MongoDB, and Socket.IO.
 
 ## 🚀 Features
 
@@ -37,9 +37,26 @@ A comprehensive ticket management system with role-based access control built wi
 
 ### Ticket System
 - **Multi-ticket support** - Users can create multiple tickets
-- **Real-time chat** - Conversation interface with message history
-- **Ticket status management** - Open/Closed states
+- **Real-time chat** - Live conversation via Socket.IO with message history
+- **Ticket status management** - Open / In Progress / Closed states
 - **Assignment system** - Admins can assign tickets to IT staff
+- **Ticket participants** - Track read/unread status per user
+- **File attachments** - Upload images (JPEG, PNG, GIF, WebP up to 10MB)
+- **Unread message tracking** - Badge counts and mark-as-read
+
+### Notifications
+- **Browser push notifications** - Native Notification API support
+- **Mobile-friendly** - PWA-aware with iOS/Android handling
+- **In-app toast fallback** - When browser notifications are blocked
+- **Sound & haptic feedback** - Audio alerts and device vibration
+- **Tab visibility detection** - Notifications only when tab is hidden
+
+### Analytics Dashboard
+- **Ticket statistics** - Total, open, in-progress, and closed counts
+- **Category distribution** - Visual breakdown by ticket category
+- **Tickets per day** - 7-day trend charts
+- **Status trends** - Track open/in-progress/closed over time
+- **Resolution rate** - Percentage of resolved tickets
 
 ### Security Features
 - Password hashing with bcrypt
@@ -47,16 +64,20 @@ A comprehensive ticket management system with role-based access control built wi
 - Role-based access control
 - Protected API routes
 - Secure cookie storage
-- Input validation
+- Input validation with Zod
+- Audit logging for all actions
 
 ## 🛠️ Tech Stack
 
 - **Frontend**: Next.js 16, React 19, TypeScript
-- **Styling**: Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: SQLite (Prisma ORM)
-- **Authentication**: JWT with cookies
-- **Security**: bcrypt for password hashing
+- **Styling**: Tailwind CSS 4
+- **Backend**: Next.js API Routes + Custom Node.js Server
+- **Database**: MongoDB with Mongoose ODM
+- **Real-time**: Socket.IO (WebSocket + polling)
+- **Authentication**: JWT with HTTP-only cookies
+- **Security**: bcrypt for password hashing, Zod for validation
+- **Charts**: Recharts for analytics visualization
+- **Alerts**: SweetAlert2
 
 ## 📋 Prerequisites
 
@@ -77,76 +98,70 @@ A comprehensive ticket management system with role-based access control built wi
    ```
 
 3. **Set up environment variables**
+   Create a `.env` file in the root directory:
    ```bash
-   # Copy the example env file
-   cp .env.example .env
+   MONGODB_URI="mongodb://localhost:27017/ticket-system"
+   JWT_SECRET="your-secret-key"
+   PORT=3000
    ```
 
-4. **Run database migrations**
-   ```bash
-   npx prisma migrate dev
-   ```
-
-5. **Seed the database**
-   ```bash
-   npm run seed
-   ```
-
-6. **Start the development server**
+4. **Start the development server**
    ```bash
    npm run dev
    ```
 
-7. **Open your browser**
+5. **Open your browser**
    Navigate to `http://localhost:3000`
 
 ## 🔐 Default Credentials
 
-After seeding, you can log in with these accounts:
-
-### Super Admin
-- **Email**: superadmin@example.com
-- **Password**: SuperAdmin123!
-
-### Admin
-- **Email**: admin@example.com
-- **Password**: Admin123!
-
-### IT
-- **Email**: it@example.com
-- **Password**: IT123!
-
-### User
-- **Email**: user@example.com
-- **Password**: User123!
+Register accounts via `/register` or create them programmatically. The first registered user can be promoted to Super Admin.
 
 ## 🏗️ Project Structure
 
 ```
 src/
 ├── app/
-│   ├── (auth)/          # Authentication pages
+│   ├── (auth)/              # Authentication pages
 │   │   ├── login/
 │   │   └── register/
-│   ├── api/             # API routes
-│   │   ├── auth/        # Authentication endpoints
-│   │   ├── tickets/     # Ticket management
-│   │   └── messages/    # Message handling
-│   ├── dashboard/       # User dashboard
-│   ├── admin/           # Admin dashboard
-│   ├── it/              # IT dashboard
-│   ├── super-admin/     # Super admin panel
-│   └── ticket/[id]/     # Ticket conversation page
-├── components/          # Reusable components
-│   └── DashboardLayout.tsx
-├── lib/                 # Utility functions
-│   ├── auth.ts          # Authentication utilities
-│   ├── prisma.ts        # Database client
-│   ├── utils.ts         # Helper functions
-│   └── middleware.ts    # Auth middleware
-prisma/
-├── schema.prisma        # Database schema
-└── seed.js              # Database seeder
+│   ├── api/                 # API routes
+│   │   ├── auth/            # Auth (login, register, logout, me)
+│   │   ├── tickets/         # Ticket CRUD, unread count, mark-as-read
+│   │   ├── messages/        # Message handling
+│   │   ├── users/           # User management
+│   │   ├── analytics/       # Dashboard analytics
+│   │   ├── audit-logs/      # Audit log viewer
+│   │   └── upload/          # File/image upload
+│   ├── dashboard/           # Role-based dashboards
+│   │   ├── admin/
+│   │   ├── it/
+│   │   └── super-admin/
+│   └── tickets/[id]/        # Ticket conversation page
+├── components/              # Reusable components
+│   ├── layout/
+│   │   └── DashboardLayout.tsx
+│   ├── GlobalNotificationHandler.tsx
+│   ├── MobileNotificationPrompt.tsx
+│   └── Providers.tsx
+├── lib/                     # Utility functions
+│   ├── auth.ts              # Authentication utilities
+│   ├── mongodb.ts           # MongoDB/Mongoose connection
+│   ├── socket.tsx           # Socket.IO client provider
+│   ├── notifications.ts     # Browser notification manager
+│   ├── audit.ts             # Audit logging
+│   ├── ticket-participant.ts # Participant/read-status helpers
+│   ├── middleware.ts         # Auth middleware
+│   └── utils.ts             # Helper functions
+├── models/                  # Mongoose models
+│   ├── User.ts
+│   ├── Ticket.ts
+│   ├── Message.ts
+│   ├── AuditLog.ts
+│   ├── TicketParticipant.ts
+│   └── index.ts
+└── types/                   # TypeScript type definitions
+server.js                    # Custom Node.js server with Socket.IO
 ```
 
 ## 📚 API Endpoints
@@ -158,13 +173,28 @@ prisma/
 - `POST /api/auth/logout` - User logout
 
 ### Tickets
-- `GET /api/tickets` - Get tickets (role-based)
+- `GET /api/tickets` - Get tickets (role-based filtering)
 - `POST /api/tickets` - Create new ticket (users only)
 - `GET /api/tickets/[id]` - Get specific ticket
 - `PUT /api/tickets/[id]` - Update ticket (admin/IT)
+- `GET /api/tickets/unread-count` - Get unread ticket count
+- `POST /api/tickets/mark-as-read` - Mark messages as read
 
 ### Messages
 - `POST /api/messages` - Send message
+
+### Users
+- `GET /api/users` - List users (admin/super-admin)
+- `GET /api/users/[id]` - Get specific user
+
+### Analytics
+- `GET /api/analytics` - Dashboard analytics data (admin/IT)
+
+### Audit Logs
+- `GET /api/audit-logs` - View audit trail (super-admin)
+
+### Upload
+- `POST /api/upload` - Upload image attachment (all roles)
 
 ## 🛡️ Security Implementation
 
@@ -208,9 +238,9 @@ prisma/
 ### Environment Variables
 Set the following in production:
 ```bash
-DATABASE_URL="your-production-database-url"
+MONGODB_URI="your-production-mongodb-uri"
 JWT_SECRET="your-super-secret-production-key"
-NEXT_PUBLIC_APP_URL="https://your-domain.com"
+PORT=3000
 ```
 
 ### Build and Deploy
@@ -221,16 +251,14 @@ npm start
 
 ## 📝 Future Enhancements
 
-- [ ] Real-time messaging with WebSocket
 - [ ] Email notifications
-- [ ] File attachments in tickets
-- [ ] Audit logging for all actions
 - [ ] Rate limiting
 - [ ] 2FA for super admin
 - [ ] IP whitelisting
 - [ ] Advanced ticket filtering
 - [ ] User profile management
-- [ ] Analytics dashboard
+- [ ] SLA tracking
+- [ ] Export tickets to CSV/PDF
 
 ## 🤝 Contributing
 

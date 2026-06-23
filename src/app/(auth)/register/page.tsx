@@ -24,13 +24,20 @@ export default function RegisterPage() {
     setSuccess(false)
 
     try {
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       const data = await response.json()
 
@@ -43,7 +50,11 @@ export default function RegisterPage() {
         router.push('/login')
       }, 2000)
     } catch (err: any) {
-      setError(err.message)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please check if the server is running and try again.')
+      } else {
+        setError(err.message || 'An unexpected error occurred')
+      }
     } finally {
       setLoading(false)
     }

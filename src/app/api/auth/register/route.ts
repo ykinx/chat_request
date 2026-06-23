@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
 import { User } from '@/models'
 import { hashPassword } from '@/lib/utils'
-import { cookies } from 'next/headers'
+
+// Timeout wrapper to prevent hanging requests
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ])
+}
 
 export async function POST(request: NextRequest) {
   try {
-    await connectToDatabase()
+    // Connect to database with 10s timeout
+    await withTimeout(
+      connectToDatabase(),
+      10000,
+      'Database connection timeout. Please ensure MongoDB is running.'
+    )
     const body = await request.json()
     console.log('Registration request body:', body)
     
@@ -94,10 +108,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Registration error:', error)
-    console.error('Error message:', error.message)
-    console.error('Error stack:', error.stack)
+    const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json(
-      { error: 'Internal server error: ' + error.message },
+      { error: message.includes('timeout') || message.includes('Mongo')
+        ? 'Server is currently unavailable. Please ensure MongoDB is running and try again.'
+        : 'Internal server error' },
       { status: 500 }
     )
   }

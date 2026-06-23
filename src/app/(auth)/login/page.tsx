@@ -18,13 +18,20 @@ export default function LoginPage() {
     setError('')
 
     try {
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       const data = await response.json()
 
@@ -50,7 +57,11 @@ export default function LoginPage() {
           router.push('/dashboard')
       }
     } catch (err: any) {
-      setError(err.message)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please check if the server is running and try again.')
+      } else {
+        setError(err.message || 'An unexpected error occurred')
+      }
     } finally {
       setLoading(false)
     }

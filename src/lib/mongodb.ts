@@ -29,6 +29,9 @@ export async function connectToDatabase() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000,   // Timeout after 5 seconds if server is unreachable
+      connectTimeoutMS: 5000,           // Timeout for initial socket connection
+      socketTimeoutMS: 10000,           // Timeout for socket inactivity
     }
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
